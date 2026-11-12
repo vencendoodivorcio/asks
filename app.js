@@ -37,13 +37,25 @@ document.addEventListener('DOMContentLoaded', async () => {
 //  CARREGAR config.json
 // ============================================================
 async function loadConfig() {
+  // 1. Tentar ler do localStorage (caso o usuário tenha editado no mesmo navegador)
+  let localCfg = null;
   try {
-    const res = await fetch('config.json?' + Date.now()); // cache-bust
-    if (!res.ok) throw new Error('Falha ao carregar config.json');
-    CONFIG = await res.json();
+    const raw = localStorage.getItem('vd_config_v1');
+    if (raw) localCfg = JSON.parse(raw);
+  } catch (e) {}
+
+  try {
+    const res = await fetch('config.json?t=' + Date.now()); // cache-bust
+    if (res.ok) {
+      CONFIG = await res.json();
+    } else if (localCfg) {
+      CONFIG = localCfg;
+    } else {
+      throw new Error('Falha ao carregar config.json');
+    }
   } catch (err) {
-    console.warn('[VD] Não foi possível carregar config.json. Usando padrões.', err);
-    CONFIG = {
+    console.warn('[VD] Não foi possível carregar config.json. Usando local/padrões.', err);
+    CONFIG = localCfg || {
       podcast: {
         titulo: 'Vencendo o Divórcio',
         subtitulo: 'Podcast',
@@ -51,10 +63,10 @@ async function loadConfig() {
         descricao: 'Envie sua dúvida sobre vida amorosa e relacionamentos.',
       },
       google_forms: {
-        form_url: '',
-        entry_nome: 'entry.000000001',
-        entry_whatsapp: 'entry.000000002',
-        entry_duvida: 'entry.000000003',
+        form_url: 'https://docs.google.com/forms/d/e/1FAIpQLSdAwxk2isRo-2ZGLvjT6jzURBGYsNy8cScc-Bz1oAIV4kJ0Yw/formResponse',
+        entry_nome: 'entry.1577453072',
+        entry_whatsapp: 'entry.1460691419',
+        entry_duvida: 'entry.596302096',
       },
       configuracoes: {
         manutencao: false,
