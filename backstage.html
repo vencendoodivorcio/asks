@@ -16,6 +16,34 @@
 </head>
 <body class="page-backstage">
 
+  <!-- Modal de Senha / Acesso Restrito -->
+  <div id="auth-modal" class="modal-backdrop" style="z-index: 99999;">
+    <div class="modal-box" style="max-width: 420px; text-align: center;">
+      <div style="font-size: 2.8rem; margin-bottom: 12px;">🔒</div>
+      <h3 class="modal-title" style="justify-content: center; margin-bottom: 8px;">Acesso Restrito</h3>
+      <p style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 20px;">
+        Informe a senha da produção para acessar o Backstage do <strong>Vencendo o Divórcio</strong>.
+      </p>
+      <form id="auth-form" onsubmit="return false;">
+        <div style="margin-bottom: 16px;">
+          <input
+            type="password"
+            id="auth-password"
+            class="config-input"
+            placeholder="Digite a senha..."
+            style="text-align: center; font-size: 1.1rem; letter-spacing: 0.15em;"
+            autofocus
+          />
+          <span id="auth-error" style="color: var(--red-bright); font-size: 0.75rem; display: block; margin-top: 6px; min-height: 1.2em;"></span>
+        </div>
+        <button type="submit" id="auth-submit-btn" class="btn btn-gold" style="width: 100%; justify-content: center;">
+          <i data-lucide="key-round"></i>
+          Entrar no Backstage
+        </button>
+      </form>
+    </div>
+  </div>
+
   <!-- Toast Container -->
   <div class="toast-container" id="toast-container"></div>
 
@@ -36,6 +64,9 @@
       </button>
       <button class="nav-tab" data-tab="config" role="tab">
         <i data-lucide="settings-2"></i> Configuração
+      </button>
+      <button class="nav-tab" id="btn-logout" title="Sair do Backstage" style="color: var(--red-bright);">
+        <i data-lucide="log-out"></i> Sair
       </button>
     </div>
   </nav>

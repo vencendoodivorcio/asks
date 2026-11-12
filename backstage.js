@@ -8,6 +8,8 @@
 // ============================================================
 const STORAGE_KEY    = 'vd_questions_v2';
 const CONFIG_KEY     = 'vd_config_v1';
+const AUTH_KEY       = 'vd_backstage_auth_v1';
+const BACKSTAGE_PASS = 'VencendoDIV26';
 
 let allQuestions   = []; // Array de objetos de pergunta
 let CONFIG         = {};  // Configuração atual
@@ -29,6 +31,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Renderizar ícones Lucide
   if (window.lucide) lucide.createIcons();
 
+  // Controle de Acesso por Senha
+  setupAuth();
+
   // Carregar dados
   loadQuestionsFromStorage();
   await loadConfigFile();
@@ -49,6 +54,57 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Re-renderizar ícones após manipulação de DOM
   if (window.lucide) lucide.createIcons();
 });
+
+// ============================================================
+//  AUTENTICAÇÃO / SENHA DO BACKSTAGE
+// ============================================================
+function setupAuth() {
+  const modal   = document.getElementById('auth-modal');
+  const input   = document.getElementById('auth-password');
+  const form    = document.getElementById('auth-form');
+  const errorEl = document.getElementById('auth-error');
+  const btnExit = document.getElementById('btn-logout');
+
+  // Verifica se já está autenticado nesta sessão/navegador
+  if (sessionStorage.getItem(AUTH_KEY) === 'granted' || localStorage.getItem(AUTH_KEY) === 'granted') {
+    if (modal) modal.style.display = 'none';
+  } else {
+    if (modal) modal.style.display = 'flex';
+    setTimeout(() => input?.focus(), 150);
+  }
+
+  function handleLogin() {
+    const val = input ? input.value : '';
+    if (val === BACKSTAGE_PASS) {
+      sessionStorage.setItem(AUTH_KEY, 'granted');
+      localStorage.setItem(AUTH_KEY, 'granted');
+      if (modal) modal.style.display = 'none';
+      if (errorEl) errorEl.textContent = '';
+      showToast('Acesso liberado ao Backstage!', 'success');
+    } else {
+      if (errorEl) errorEl.textContent = 'Senha incorreta. Tente novamente.';
+      if (input) {
+        input.value = '';
+        input.classList.add('shake');
+        setTimeout(() => input.classList.remove('shake'), 400);
+        input.focus();
+      }
+    }
+  }
+
+  form?.addEventListener('submit', handleLogin);
+  document.getElementById('auth-submit-btn')?.addEventListener('click', handleLogin);
+
+  btnExit?.addEventListener('click', () => {
+    sessionStorage.removeItem(AUTH_KEY);
+    localStorage.removeItem(AUTH_KEY);
+    if (modal) {
+      modal.style.display = 'flex';
+      if (input) { input.value = ''; input.focus(); }
+    }
+    showToast('Sessão encerrada com sucesso.', 'info');
+  });
+}
 
 // ============================================================
 //  NAVEGAÇÃO POR ABAS
