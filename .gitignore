@@ -1,0 +1,16 @@
+# Arquivos de dados confidenciais do podcast (nunca subir para o GitHub)
+*.csv
+*.xlsx
+*.xls
+*respostas*
+*formulario*
+*backup*
+
+# Logs e sistema
+*.log
+.DS_Store
+Thumbs.db
+
+# Configurações locais sensíveis (se houver)
+.env
+.env.local
