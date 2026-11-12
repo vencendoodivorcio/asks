@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Vencendo o Divórcio — Envie sua Pergunta</title>
+  <meta name="description" content="Envie sua dúvida sobre vida amorosa para o Podcast Vencendo o Divórcio" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body class="page-public">
+
+  <!-- Animated Background Canvas -->
+  <canvas id="particles-canvas"></canvas>
+
+  <!-- Maintenance Overlay -->
+  <div id="maintenance-overlay" class="maintenance-overlay hidden">
+    <div class="maintenance-content">
+      <div class="maintenance-rings">💍</div>
+      <h2>Perguntas Encerradas</h2>
+      <p id="maintenance-msg">Aguarde o próximo episódio!</p>
+      <div class="maintenance-podcast-name">Vencendo o Divórcio • Podcast</div>
+    </div>
+  </div>
+
+  <!-- Main App -->
+  <div class="app-container" id="app-container">
+
+    <!-- Header / Logo -->
+    <header class="site-header">
+      <div class="logo-wrapper">
+        <img
+          src="WhatsApp Image 2026-11-12 at 12.06.23 (1).jpeg"
+          alt="Vencendo o Divórcio Podcast"
+          class="logo-img"
+          onerror="this.style.display='none'; document.getElementById('logo-fallback').style.display='flex';"
+        />
+        <div id="logo-fallback" class="logo-fallback" style="display:none;">
+          <div class="logo-rings-row">
+            <span class="ring-intact">💍</span>
+            <div class="logo-text-block">
+              <span class="logo-vencendo">VENCENDO</span>
+              <span class="logo-o">o</span>
+              <span class="logo-divorcio">DIVÓRCIO</span>
+            </div>
+            <span class="ring-broken">💔</span>
+          </div>
+          <span class="logo-podcast-label">⫿⫿ PODCAST ⫿⫿</span>
+        </div>
+      </div>
+      <div class="episode-badge" id="episode-badge">
+        <i data-lucide="mic-2"></i>
+        <span id="episode-title">Carregando...</span>
+      </div>
+      <p class="header-desc" id="header-desc">Sua pergunta pode ser respondida ao vivo!</p>
+    </header>
+
+    <!-- Form Card -->
+    <main class="form-container" id="form-container">
+      <form id="question-form" novalidate>
+
+        <div class="form-title-row">
+          <i data-lucide="message-circle" class="form-icon-title"></i>
+          <div>
+            <h2 class="form-heading">Envie sua Pergunta</h2>
+            <p class="form-subheading">Preencha os campos abaixo — cada pergunta é lida pela produção.</p>
+          </div>
+        </div>
+
+        <!-- CAMPO 1: Nome -->
+        <div class="field-group" id="field-nome-group">
+          <label class="field-label" for="input-nome">
+            <i data-lucide="user-round"></i>
+            Seu Nome
+            <span class="field-required">*</span>
+          </label>
+          <div class="input-wrapper">
+            <input
+              type="text"
+              id="input-nome"
+              name="nome"
+              placeholder="Como podemos te chamar?"
+              class="field-input"
+              maxlength="80"
+              autocomplete="given-name"
+            />
+          </div>
+          <div class="checkbox-row">
+            <label class="checkbox-label" for="check-anonimo">
+              <input type="checkbox" id="check-anonimo" />
+              <span class="checkbox-custom"></span>
+              <span>Prefiro enviar como <strong>Anônimo(a)</strong></span>
+            </label>
+          </div>
+          <span class="field-error" id="error-nome" role="alert"></span>
+        </div>
+
+        <!-- CAMPO 2: WhatsApp -->
+        <div class="field-group">
+          <label class="field-label" for="input-whatsapp">
+            <i data-lucide="smartphone"></i>
+            WhatsApp
+            <span class="field-required">*</span>
+          </label>
+          <div class="input-wrapper input-with-icon">
+            <i data-lucide="phone" class="input-icon-left"></i>
+            <input
+              type="tel"
+              id="input-whatsapp"
+              name="whatsapp"
+              placeholder="(00) 00000-0000"
+              class="field-input has-left-icon"
+              maxlength="15"
+              inputmode="numeric"
+              autocomplete="tel"
+            />
+          </div>
+          <p class="field-hint">
+            <i data-lucide="shield-check"></i>
+            Número <strong>100% confidencial</strong> — jamais será exibido ao vivo ou compartilhado.
+          </p>
+          <span class="field-error" id="error-whatsapp" role="alert"></span>
+        </div>
+
+        <!-- CAMPO 3: Dúvida -->
+        <div class="field-group">
+          <label class="field-label" for="input-duvida">
+            <i data-lucide="heart"></i>
+            Sua Dúvida sobre a Vida Amorosa
+            <span class="field-required">*</span>
+          </label>
+          <div class="input-wrapper textarea-wrapper">
+            <textarea
+              id="input-duvida"
+              name="duvida"
+              placeholder="Conte sua situação com detalhes. Quanto mais contexto você der, mais completa será a resposta..."
+              class="field-input field-textarea"
+              rows="6"
+              maxlength="500"
+            ></textarea>
+            <div class="textarea-gradient-fade"></div>
+          </div>
+          <div class="char-counter-row">
+            <span class="field-hint" style="margin:0;">
+              <i data-lucide="lightbulb"></i>
+              Seja específico(a) para uma resposta mais completa.
+            </span>
+            <span class="char-counter" id="char-counter-display">
+              <span id="char-count">0</span>/<span id="char-max">500</span>
+            </span>
+          </div>
+          <span class="field-error" id="error-duvida" role="alert"></span>
+        </div>
+
+        <!-- Submit -->
+        <button type="submit" class="btn-submit" id="btn-submit">
+          <span class="btn-text">
+            <i data-lucide="send"></i>
+            Enviar Minha Pergunta
+          </span>
+          <span class="btn-loading hidden">
+            <span class="spinner"></span>
+            Enviando...
+          </span>
+        </button>
+
+        <p class="privacy-note">
+          <i data-lucide="lock"></i>
+          Suas informações são usadas exclusivamente para produção do podcast.
+        </p>
+
+      </form>
+    </main>
+
+    <!-- Tela de Sucesso (oculta) -->
+    <div class="success-screen hidden" id="success-screen">
+      <div class="success-content">
+        <div class="success-anim-wrapper">
+          <div class="success-rings-anim">💍</div>
+          <svg class="checkmark-svg" viewBox="0 0 52 52" aria-hidden="true">
+            <circle class="checkmark-circle" cx="26" cy="26" r="25" fill="none"/>
+            <path class="checkmark-check" fill="none" d="M14.1 27.2l7.1 7.2 16.7-16.8"/>
+          </svg>
+        </div>
+        <h2 class="success-title">Pergunta Enviada! 🎙️</h2>
+        <p class="success-msg">
+          Sua dúvida foi recebida pela produção do <strong>Vencendo o Divórcio</strong>.
+          Fique ligado no próximo episódio — pode ser a sua vez!
+        </p>
+        <div class="success-details">
+          <div class="success-detail-item">
+            <i data-lucide="clock"></i>
+            <span>Aguarde o próximo episódio</span>
+          </div>
+          <div class="success-detail-item">
+            <i data-lucide="shield-check"></i>
+            <span>Seus dados estão protegidos</span>
+          </div>
+          <div class="success-detail-item">
+            <i data-lucide="mic-2"></i>
+            <span>Sua pergunta será avaliada pela produção</span>
+          </div>
+        </div>
+        <button class="btn-new-question" id="btn-new-question">
+          <i data-lucide="plus-circle"></i>
+          Enviar Outra Pergunta
+        </button>
+      </div>
+    </div>
+
+    <footer class="site-footer">
+      <p>© 2026 <strong>Vencendo o Divórcio Podcast</strong> — Canal Oficial</p>
+    </footer>
+
+  </div><!-- /.app-container -->
+
+  <!-- iframe oculto para fallback de envio -->
+  <iframe id="hidden-iframe" name="hidden-iframe" style="display:none;" title="form-target"></iframe>
+
+  <script src="app.js"></script>
+</body>
+</html>

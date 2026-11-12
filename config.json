@@ -1,0 +1,28 @@
+{
+  "_comment": "=== CONFIGURAÇÃO DO PODCAST VENCENDO O DIVÓRCIO ===",
+  "_instrucoes": "Preencha os campos abaixo com os dados do seu Google Forms",
+  
+  "podcast": {
+    "titulo": "Vencendo o Divórcio",
+    "subtitulo": "Podcast",
+    "edicao_atual": "Episódio 1 — Temporada 2026",
+    "descricao": "Envie sua dúvida sobre vida amorosa e relacionamentos. Sua pergunta pode ser respondida ao vivo!"
+  },
+
+  "google_forms": {
+    "_comment_url": "Cole aqui a URL de ACTION do seu Google Forms (não a URL de edição, mas a URL do formulário publicado substituindo /viewform por /formResponse)",
+    "form_url": "https://docs.google.com/forms/d/e/1FAIpQLSdAwxk2isRo-2ZGLvjT6jzURBGYsNy8cScc-Bz1oAIV4kJ0Yw/formResponse",
+    
+    "_comment_ids": "Cole abaixo os IDs dos campos. Para encontrá-los: abra o formulário, inspecione o HTML, procure os inputs com name='entry.XXXXXXXXX'",
+    "entry_nome": "entry.1577453072",
+    "entry_whatsapp": "entry.1460691419",
+    "entry_duvida": "entry.596302096"
+  },
+
+  "configuracoes": {
+    "_comment_manutencao": "Mude para true para fechar o formulário e exibir mensagem de encerramento",
+    "manutencao": false,
+    "mensagem_manutencao": "As perguntas para este episódio estão encerradas. Fique ligado nas redes sociais para o próximo!",
+    "max_chars_duvida": 500
+  }
+}
