@@ -237,19 +237,26 @@
           <!-- Controls -->
           <div class="generator-controls">
             <div>
-              <label class="ctrl-label">Nome do Ouvinte</label>
+              <label class="ctrl-label">Nome de Exibição</label>
               <input
                 type="text"
                 class="ctrl-name-input"
                 id="ctrl-name"
-                placeholder="Nome ou Anônimo"
+                placeholder="Ex: Anônimo ou Nome da pessoa"
                 value=""
               />
-              <label class="toggle-anon-row" style="margin-top:8px;">
-                <input type="checkbox" id="ctrl-anon-toggle" />
-                <span class="checkbox-custom" style="width:18px;height:18px;"></span>
-                <span style="font-size:0.8rem;">Exibir como "Anônimo"</span>
-              </label>
+              <div style="display:flex;gap:16px;margin-top:8px;">
+                <label class="toggle-anon-row">
+                  <input type="checkbox" id="ctrl-anon-toggle" />
+                  <span class="checkbox-custom" style="width:18px;height:18px;"></span>
+                  <span style="font-size:0.8rem;">Marcar "Anônimo"</span>
+                </label>
+                <label class="toggle-anon-row">
+                  <input type="checkbox" id="ctrl-hide-name" />
+                  <span class="checkbox-custom" style="width:18px;height:18px;"></span>
+                  <span style="font-size:0.8rem;">Ocultar Nome (só a pergunta)</span>
+                </label>
+              </div>
             </div>
 
             <div>

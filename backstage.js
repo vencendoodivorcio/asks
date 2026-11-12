@@ -550,12 +550,10 @@ function renderQuestionCard(q) {
         <select class="status-select" title="Alterar status">
           ${statusOptions}
         </select>
-        ${q.status === 'Aprovada' ? `
-          <button class="btn btn-success btn-xs btn-use-in-art" title="Usar no Gerador Visual">
-            <i data-lucide="image-plus"></i>
-            Gerar Arte
-          </button>
-        ` : ''}
+        <button class="btn btn-gold btn-xs btn-use-in-art" title="Gerar Arte com esta pergunta">
+          <i data-lucide="image-plus"></i>
+          Gerar Arte
+        </button>
         <button class="btn btn-danger btn-xs btn-delete-q" title="Excluir permanentemente" style="margin-left:auto;">
           <i data-lucide="trash-2"></i>
         </button>
@@ -712,6 +710,8 @@ function registerGeneratorControls() {
     drawArt();
   });
 
+  document.getElementById('ctrl-hide-name')?.addEventListener('change', drawArt);
+
   document.getElementById('ctrl-auto-font')?.addEventListener('change', drawArt);
 
   // Download
@@ -725,9 +725,10 @@ function populateApprovedSelect() {
   const sel = document.getElementById('gen-question-select');
   if (!sel) return;
 
-  const approved = allQuestions.filter(q => q.status === 'Aprovada');
-  sel.innerHTML = '<option value="">— Selecione uma pergunta aprovada —</option>' +
-    approved.map(q => `<option value="${q.id}">${escHtml(q.nome)} — ${escHtml(q.duvida.substring(0, 60))}...</option>`).join('');
+  // Lista todas as perguntas cadastradas (priorizando aprovadas e pendentes)
+  const items = allQuestions.filter(q => !q.archived);
+  sel.innerHTML = '<option value="">— Selecionar uma pergunta da lista —</option>' +
+    items.map(q => `<option value="${q.id}">[${q.status}] ${escHtml(q.nome || 'Anônimo')} — ${escHtml(q.duvida.substring(0, 50))}...</option>`).join('');
 }
 
 function openInGenerator(id) {
@@ -765,10 +766,11 @@ function drawArt() {
   canvas.style.width  = Math.round(W * scale) + 'px';
   canvas.style.height = Math.round(H * scale) + 'px';
 
-  const nome  = document.getElementById('ctrl-anon-toggle')?.checked
-    ? 'Anônimo'
-    : (document.getElementById('ctrl-name')?.value.trim() || '');
-  const texto = document.getElementById('ctrl-text')?.value.trim() || 'Nenhum texto selecionado.';
+  const hideName = document.getElementById('ctrl-hide-name')?.checked;
+  const isAnon = document.getElementById('ctrl-anon-toggle')?.checked;
+  const rawName = document.getElementById('ctrl-name')?.value.trim();
+  const nome = hideName ? '' : (isAnon ? 'Anônimo' : rawName);
+  const texto = document.getElementById('ctrl-text')?.value.trim() || 'Digite ou selecione uma pergunta na Curadoria...';
 
   // Fundo
   drawBackground(ctx, W, H, currentTheme);
@@ -994,45 +996,47 @@ function drawQuestionBox(ctx, W, H, nome, texto) {
   const contentX = boxX + pad;
   const contentW = boxW - pad * 2;
 
-  // Label "PERGUNTA DO OUVINTE"
-  const labelY = boxY + (isOverlay ? boxH * 0.2 : boxH * 0.1);
-  ctx.font = `600 ${Math.min(W * 0.022, 28)}px 'Inter', sans-serif`;
-  ctx.fillStyle = isChampagne ? '#C81D25' : 'rgba(201,168,76,0.9)';
-  ctx.textAlign = 'left';
-  ctx.fillText('💬  PERGUNTA DO OUVINTE', contentX, labelY);
+  // Se tiver nome (ou for anônimo), desenha o bloco do autor
+  let currentY = boxY + (isOverlay ? boxH * 0.18 : boxH * 0.12);
 
-  // Nome do ouvinte
-  const nomeY = labelY + Math.min(W * 0.045, 56);
-  ctx.font = `700 ${Math.min(W * 0.038, 48)}px 'Playfair Display', serif`;
-  ctx.fillStyle = isChampagne ? '#2B1414' : '#F5EDD8';
-  ctx.shadowColor = isChampagne ? 'transparent' : 'rgba(201,168,76,0.3)';
-  ctx.shadowBlur = isChampagne ? 0 : 10;
-  ctx.fillText(nome || 'Ouvinte', contentX, nomeY);
-  ctx.shadowBlur = 0;
+  if (nome) {
+    // Nome da pessoa ou Anônimo
+    ctx.font = `700 ${Math.min(W * 0.038, 44)}px 'Playfair Display', serif`;
+    ctx.fillStyle = isChampagne ? '#2B1414' : '#F5EDD8';
+    ctx.shadowColor = isChampagne ? 'transparent' : 'rgba(201,168,76,0.3)';
+    ctx.shadowBlur = isChampagne ? 0 : 10;
+    ctx.fillText(nome, contentX, currentY);
+    ctx.shadowBlur = 0;
 
-  // Linha separadora nome/texto
-  const sepY2 = nomeY + Math.min(W * 0.015, 20);
-  ctx.strokeStyle = isChampagne ? 'rgba(201,151,70,0.35)' : 'rgba(201,168,76,0.3)';
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.moveTo(contentX, sepY2);
-  ctx.lineTo(contentX + contentW, sepY2);
-  ctx.stroke();
+    // Linha divisória sutil
+    const sepY2 = currentY + Math.min(W * 0.015, 18);
+    ctx.strokeStyle = isChampagne ? 'rgba(201,151,70,0.35)' : 'rgba(201,168,76,0.3)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(contentX, sepY2);
+    ctx.lineTo(contentX + contentW, sepY2);
+    ctx.stroke();
+
+    currentY = sepY2 + Math.min(W * 0.03, 34);
+  } else {
+    // Sem nome (oculto): dá mais espaço e centraliza o texto da pergunta
+    currentY += Math.min(W * 0.01, 10);
+  }
 
   // Texto da dúvida com quebra automática
-  const textY = sepY2 + Math.min(W * 0.025, 32);
+  const maxAvailableH = boxH - (currentY - boxY) - pad;
 
   // Calcular tamanho de fonte automático
   let fontSize;
   if (document.getElementById('ctrl-auto-font')?.checked) {
-    fontSize = calcAutoFontSize(ctx, texto, contentW, boxH * 0.55, 16, 44);
+    fontSize = calcAutoFontSize(ctx, texto, contentW, maxAvailableH * 0.9, 18, 48);
   } else {
     fontSize = parseInt(document.getElementById('ctrl-font-size')?.value || '32');
   }
 
   ctx.font = `400 ${fontSize}px 'Inter', sans-serif`;
-  ctx.fillStyle = isChampagne ? '#5C3A31' : '#C8A882';
-  wrapText(ctx, texto, contentX, textY, contentW, fontSize * 1.5, boxH - (textY - boxY) - pad);
+  ctx.fillStyle = isChampagne ? '#3D221E' : '#C8A882';
+  wrapText(ctx, texto, contentX, currentY, contentW, fontSize * 1.5, maxAvailableH);
 }
 
 /** Calcula automaticamente o tamanho de fonte que cabe na área */
