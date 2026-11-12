@@ -83,12 +83,8 @@ function applyConfig() {
   const pod = CONFIG.podcast;
   const cfg = CONFIG.configuracoes;
 
-  // Episode badge & description
-  const episodeEl = document.getElementById('episode-title');
-  if (episodeEl) episodeEl.textContent = pod.edicao_atual || '';
-
   const descEl = document.getElementById('header-desc');
-  if (descEl) descEl.textContent = pod.descricao || '';
+  if (descEl && pod.descricao) descEl.textContent = pod.descricao;
 
   // Max chars para a dúvida
   state.charMax = cfg.max_chars_duvida || 500;
