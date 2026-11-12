@@ -43,8 +43,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Renderizar ícones Lucide
   if (window.lucide) lucide.createIcons();
 
-  // Inicializa carregamento da logo oficial para o canvas
+  // Inicializa carregamento da logo oficial e fontes para o canvas
   getLogoImage();
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(() => drawArt());
+  }
 
   // Controle de Acesso por Senha
   setupAuth();
@@ -711,10 +714,10 @@ function registerGeneratorControls() {
       if (id === 'ctrl-font-size') {
         document.getElementById('ctrl-font-size-label').textContent =
           document.getElementById('ctrl-font-size').value + 'px';
+        const autoEl = document.getElementById('ctrl-auto-font');
+        if (autoEl && autoEl.checked) autoEl.checked = false;
       }
-      if (!document.getElementById('ctrl-auto-font')?.checked || id !== 'ctrl-font-size') {
-        drawArt();
-      }
+      drawArt();
     });
   });
 
@@ -775,67 +778,61 @@ function drawArt() {
   canvas.width  = W;
   canvas.height = H;
 
-  // Escalar preview para caber na tela (max 540px de largura no preview)
-  const previewMaxW = 480;
-  const scale = Math.min(previewMaxW / W, previewMaxW / H, 1);
+  // Escalar preview para caber na tela mantendo proporção nítida
+  const previewMaxW = currentArtFormat === 'horizontal' ? 540 : 460;
+  const previewMaxH = 520;
+  const scale = Math.min(previewMaxW / W, previewMaxH / H, 1);
   canvas.style.width  = Math.round(W * scale) + 'px';
   canvas.style.height = Math.round(H * scale) + 'px';
 
   const hideName = document.getElementById('ctrl-hide-name')?.checked;
-  const isAnon = document.getElementById('ctrl-anon-toggle')?.checked;
-  const rawName = document.getElementById('ctrl-name')?.value.trim();
-  const nome = hideName ? '' : (isAnon ? 'Anônimo' : rawName);
-  const texto = document.getElementById('ctrl-text')?.value.trim() || 'Digite ou selecione uma pergunta na Curadoria...';
+  const isAnon   = document.getElementById('ctrl-anon-toggle')?.checked;
+  const rawName  = document.getElementById('ctrl-name')?.value.trim();
+  const nome     = hideName ? '' : (isAnon ? 'Anônimo' : rawName);
+  const texto    = document.getElementById('ctrl-text')?.value.trim() || 'Digite ou selecione uma pergunta na Curadoria...';
 
-  // Fundo
+  ctx.textBaseline = 'alphabetic';
+
+  if (currentTheme === 'overlay') {
+    drawOverlayBroadcast(ctx, W, H, nome, texto);
+    return;
+  }
+
+  // Fundo + iluminação + moldura editorial
   drawBackground(ctx, W, H, currentTheme);
-
-  // Decorações
   drawDecorations(ctx, W, H, currentTheme);
 
-  // Logo / Título do podcast
-  drawPodcastHeader(ctx, W, H);
-
-  // Caixa da pergunta
-  drawQuestionBox(ctx, W, H, nome, texto);
+  // Layout específico por proporção (16:9 split vs 1:1 / 9:16 vertical stack)
+  if (currentArtFormat === 'horizontal') {
+    drawWidescreenLayout(ctx, W, H, nome, texto);
+  } else {
+    drawVerticalStackLayout(ctx, W, H, nome, texto);
+  }
 }
 
 function drawBackground(ctx, W, H, theme) {
-  if (theme === 'overlay') {
-    // Fundo semi-transparente escuro (ideal para OBS/vMix Lower Third)
-    ctx.clearRect(0, 0, W, H);
-    const grad = ctx.createLinearGradient(0, H * 0.6, 0, H);
-    grad.addColorStop(0, 'rgba(10,5,5,0)');
-    grad.addColorStop(0.3, 'rgba(10,5,5,0.85)');
-    grad.addColorStop(1, 'rgba(10,5,5,0.97)');
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, W, H);
-  } else if (theme === 'champagne') {
-    // Fundo claro champagne / pêssego luminoso (idêntico ao canal YouTube)
-    const grad = ctx.createLinearGradient(0, 0, W, H);
-    grad.addColorStop(0, '#FFF8F0');
-    grad.addColorStop(0.5, '#F6DEC7');
-    grad.addColorStop(1, '#EBBFA0');
+  if (theme === 'champagne') {
+    const grad = ctx.createLinearGradient(0, 0, W * 0.85, H);
+    grad.addColorStop(0,    '#FDF7F0');
+    grad.addColorStop(0.45, '#F5DEC8');
+    grad.addColorStop(1,    '#E5BA96');
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, W, H);
   } else {
-    // Fundo escuro (dark)
     const grad = ctx.createLinearGradient(0, 0, W, H);
-    grad.addColorStop(0, '#120A0A');
-    grad.addColorStop(0.5, '#1C0F0F');
-    grad.addColorStop(1, '#0A0505');
+    grad.addColorStop(0,   '#16090B');
+    grad.addColorStop(0.5, '#220E12');
+    grad.addColorStop(1,   '#0B0406');
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, W, H);
   }
 }
 
 function drawDecorations(ctx, W, H, theme) {
-  if (theme === 'overlay') return; // sem decorações no overlay
-
   const isChampagne = theme === 'champagne';
 
-  // Brilhos e flares de iluminação de estúdio
-  const drawGlow = (x, y, r, color) => {
+  // Luz suave de estúdio
+  const glow = (x, y, r, color) => {
     const g = ctx.createRadialGradient(x, y, 0, x, y, r);
     g.addColorStop(0, color);
     g.addColorStop(1, 'transparent');
@@ -846,273 +843,716 @@ function drawDecorations(ctx, W, H, theme) {
   };
 
   if (isChampagne) {
-    drawGlow(W * 0.15, H * 0.12, W * 0.35, 'rgba(255, 255, 255, 0.7)');
-    drawGlow(W * 0.85, H * 0.15, W * 0.4, 'rgba(201, 151, 70, 0.22)');
-    drawGlow(W * 0.5, H * 0.95, W * 0.45, 'rgba(200, 29, 37, 0.08)');
+    glow(W * 0.14, H * 0.10, W * 0.42, 'rgba(255, 255, 255, 0.72)');
+    glow(W * 0.88, H * 0.18, W * 0.36, 'rgba(201, 151, 70, 0.20)');
+    glow(W * 0.50, H * 0.96, W * 0.48, 'rgba(180, 24, 32, 0.08)');
   } else {
-    drawGlow(W * 0.1,  H * 0.1,  W * 0.3, 'rgba(139,26,26,0.15)');
-    drawGlow(W * 0.9,  H * 0.9,  W * 0.3, 'rgba(201,168,76,0.12)');
-    drawGlow(W * 0.85, H * 0.1,  W * 0.2, 'rgba(201,168,76,0.08)');
+    glow(W * 0.12, H * 0.12, W * 0.34, 'rgba(168, 20, 27, 0.20)');
+    glow(W * 0.88, H * 0.85, W * 0.34, 'rgba(201, 151, 70, 0.14)');
+    glow(W * 0.50, H * 0.15, W * 0.30, 'rgba(201, 151, 70, 0.08)');
   }
 
-  // Linhas geométricas de acabamento de alta produção
-  const lineY = H * 0.04;
-  const lineGrad = ctx.createLinearGradient(0, 0, W, 0);
-  lineGrad.addColorStop(0, 'transparent');
-  lineGrad.addColorStop(0.2, isChampagne ? 'rgba(201,151,70,0.5)' : 'rgba(201,168,76,0.6)');
-  lineGrad.addColorStop(0.5, isChampagne ? 'rgba(200,29,37,0.7)' : 'rgba(139,26,26,0.6)');
-  lineGrad.addColorStop(0.8, isChampagne ? 'rgba(201,151,70,0.5)' : 'rgba(201,168,76,0.6)');
-  lineGrad.addColorStop(1, 'transparent');
-  ctx.strokeStyle = lineGrad;
-  ctx.lineWidth = 3;
-  ctx.beginPath();
-  ctx.moveTo(W * 0.08, lineY);
-  ctx.lineTo(W * 0.92, lineY);
-  ctx.stroke();
-
-  // Partículas finas de brilho cintilante
-  ctx.fillStyle = isChampagne ? 'rgba(201,151,70,0.45)' : 'rgba(201,168,76,0.4)';
-  const seed = 53;
-  for (let i = 0; i < 40; i++) {
-    const px = ((seed * (i * 7919 + 7)) % W + W) % W;
-    const py = ((seed * (i * 6271 + 11)) % H + H) % H;
-    const pr = (i % 4 === 0) ? 2.5 : 1.2;
+  // Bokeh / partículas sutis de estúdio
+  for (let i = 0; i < 34; i++) {
+    const px = ((53 * (i * 7919 + 7)) % W + W) % W;
+    const py = ((53 * (i * 6271 + 11)) % H + H) % H;
+    const pr = (i % 6 === 0) ? 3.2 : (i % 3 === 0 ? 1.8 : 1.0);
+    ctx.fillStyle = isChampagne
+      ? (i % 2 === 0 ? 'rgba(255,255,255,0.55)' : 'rgba(201,151,70,0.32)')
+      : 'rgba(232,199,122,0.28)';
     ctx.beginPath();
     ctx.arc(px, py, pr, 0, Math.PI * 2);
     ctx.fill();
   }
+
+  // Moldura editorial fina perimetral
+  const m = 24;
+  ctx.save();
+  const frameG = ctx.createLinearGradient(m, m, W - m, H - m);
+  frameG.addColorStop(0,   isChampagne ? 'rgba(201,151,70,0.45)' : 'rgba(201,151,70,0.40)');
+  frameG.addColorStop(0.5, isChampagne ? 'rgba(200,29,37,0.25)'  : 'rgba(200,29,37,0.30)');
+  frameG.addColorStop(1,   isChampagne ? 'rgba(201,151,70,0.45)' : 'rgba(201,151,70,0.40)');
+  ctx.strokeStyle = frameG;
+  ctx.lineWidth   = 1.5;
+  roundedRect(ctx, m, m, W - m * 2, H - m * 2, 18);
+  ctx.stroke();
+  ctx.restore();
 }
 
-function drawPodcastHeader(ctx, W, H) {
-  const isHoriz   = currentArtFormat === 'horizontal';
-  const isVertical = currentArtFormat === 'vertical';
-  const isOverlay  = currentTheme === 'overlay';
-  const isChampagne = currentTheme === 'champagne';
-
-  if (isOverlay) {
-    const logoSize = Math.min(W, H) * 0.055;
-    ctx.font = `900 ${logoSize}px 'Playfair Display', serif`;
-    ctx.fillStyle = '#E8C77A';
-    ctx.textAlign = 'left';
-    ctx.fillText('PODCAST VENCENDO O DIVÓRCIO', W * 0.04, H * 0.08);
-    return;
-  }
-
-  // Tentar usar a LOGO OFICIAL ORIGINAL (imagem dos anéis e tipografia cromada)
+/**
+ * Desenha o emblema oficial do podcast recortado de assets/logo.jpg
+ * (focado nas alianças + VENCENDO O DIVÓRCIO + PODCAST) em placa arredondada com borda dourada
+ */
+function drawLogoBadge(ctx, x, y, w, h, radius, isDark) {
   const logoImg = getLogoImage();
-  const headerCenterY = isHoriz ? H * 0.16 : (isVertical ? H * 0.12 : H * 0.15);
+
+  ctx.save();
+  ctx.shadowColor   = isDark ? 'rgba(0,0,0,0.75)' : 'rgba(105, 55, 22, 0.25)';
+  ctx.shadowBlur    = 28;
+  ctx.shadowOffsetY = 8;
+
+  // Base da placa (usada também durante carregamento/fallback)
+  const baseG = ctx.createLinearGradient(x, y, x + w, y + h);
+  baseG.addColorStop(0, '#FAF0E4');
+  baseG.addColorStop(1, '#E9CAA8');
+  ctx.fillStyle = baseG;
+  roundedRect(ctx, x, y, w, h, radius);
+  ctx.fill();
+  ctx.restore();
+
+  ctx.save();
+  roundedRect(ctx, x, y, w, h, radius);
+  ctx.clip();
 
   if (logoImg) {
-    // Proporção e tamanho da logo oficial no topo
-    const targetW = isHoriz ? W * 0.28 : (isVertical ? W * 0.52 : W * 0.44);
-    const aspect = logoImg.naturalHeight / logoImg.naturalWidth;
-    const targetH = targetW * aspect;
-    const logoX = (W - targetW) / 2;
-    const logoY = headerCenterY - (targetH * 0.5);
+    const iw = logoImg.naturalWidth;
+    const ih = logoImg.naturalHeight;
+    // Recorte limpo focado nos anéis + título + ondas sonoras (exclui "CANAL OFICIAL" redundante)
+    const sx = iw * 0.02;
+    const sy = ih * 0.19;
+    const sw = iw * 0.96;
+    const sh = ih * 0.54;
+    ctx.drawImage(logoImg, sx, sy, sw, sh, x, y, w, h);
 
-    ctx.save();
-    ctx.shadowColor = isChampagne ? 'rgba(139,69,39,0.18)' : 'rgba(0,0,0,0.6)';
-    ctx.shadowBlur = 18;
-    ctx.drawImage(logoImg, logoX, logoY, targetW, targetH);
-    ctx.restore();
+    // Vinheta sutil nas bordas para acabamento integrado
+    const vig = ctx.createRadialGradient(
+      x + w * 0.5, y + h * 0.5, w * 0.25,
+      x + w * 0.5, y + h * 0.5, w * 0.72
+    );
+    vig.addColorStop(0, 'rgba(0,0,0,0)');
+    vig.addColorStop(1, 'rgba(107, 58, 28, 0.14)');
+    ctx.fillStyle = vig;
+    ctx.fillRect(x, y, w, h);
   } else {
-    // Fallback Tipográfico Ultra Premium
-    const titleSize = Math.min(W * 0.058, 76);
-    ctx.font = `600 ${titleSize * 0.38}px 'Inter', sans-serif`;
-    ctx.fillStyle = isChampagne ? '#8B5A2B' : '#C8A882';
+    // Fallback tipográfico elegante enquanto imagem carrega
     ctx.textAlign = 'center';
-    ctx.letterSpacing = '0.25em';
-    ctx.fillText('PODCAST', W * 0.5, headerCenterY - titleSize * 0.55);
-    ctx.letterSpacing = '0';
+    ctx.fillStyle = '#3B1816';
+    ctx.font      = `600 ${Math.round(h * 0.13)}px 'Inter', sans-serif`;
+    drawTrackedText(ctx, 'VENCENDO O', x + w / 2, y + h * 0.34, 4, 'center');
 
-    ctx.font = `900 ${titleSize}px 'Playfair Display', serif`;
-    const tGrad = ctx.createLinearGradient(W * 0.2, 0, W * 0.8, 0);
-    tGrad.addColorStop(0, '#A8141B');
-    tGrad.addColorStop(0.5, '#C81D25');
-    tGrad.addColorStop(1, '#8B1A1A');
-    ctx.fillStyle = tGrad;
-    ctx.fillText('VENCENDO O DIVÓRCIO', W * 0.5, headerCenterY + titleSize * 0.45);
+    ctx.fillStyle = '#A8141B';
+    ctx.font      = `900 ${Math.round(h * 0.32)}px 'Playfair Display', serif`;
+    ctx.fillText('DIVÓRCIO', x + w / 2, y + h * 0.67);
+
+    ctx.fillStyle = '#5E3824';
+    ctx.font      = `600 ${Math.round(h * 0.09)}px 'Inter', sans-serif`;
+    drawTrackedText(ctx, 'PODCAST', x + w / 2, y + h * 0.84, 5, 'center');
   }
+  ctx.restore();
+
+  // Moldura metálica dourada
+  ctx.save();
+  const rimG = ctx.createLinearGradient(x, y, x + w, y + h);
+  rimG.addColorStop(0,    '#B88635');
+  rimG.addColorStop(0.35, '#F3DA99');
+  rimG.addColorStop(0.7,  '#C99746');
+  rimG.addColorStop(1,    '#8E601B');
+  ctx.strokeStyle = rimG;
+  ctx.lineWidth   = 2.5;
+  roundedRect(ctx, x, y, w, h, radius);
+  ctx.stroke();
+  ctx.restore();
 }
 
-function drawQuestionBox(ctx, W, H, nome, texto) {
-  const isOverlay  = currentTheme === 'overlay';
-  const isHoriz    = currentArtFormat === 'horizontal';
-  const isVertical = currentArtFormat === 'vertical';
-  const isChampagne = currentTheme === 'champagne';
+/** Desenha barras de onda sonora vetoriais decorativas */
+function drawSoundwave(ctx, cx, cy, totalW, maxH, color) {
+  const heights = [0.35, 0.65, 1.0, 0.55, 0.85, 0.45, 0.90, 0.50, 0.30];
+  const barW    = Math.max(2.5, totalW / (heights.length * 2.1));
+  const gap     = barW * 1.1;
+  const startX  = cx - ((heights.length * barW + (heights.length - 1) * gap) / 2);
 
-  // Área da caixa de pergunta com respiro proporcional
-  let boxX, boxY, boxW, boxH;
-  if (isOverlay) {
-    boxX = W * 0.04;
-    boxY = H * 0.70;
-    boxW = W * 0.92;
-    boxH = H * 0.27;
-  } else if (isHoriz) {
-    boxX = W * 0.10;
-    boxY = H * 0.36;
-    boxW = W * 0.80;
-    boxH = H * 0.54;
-  } else if (isVertical) {
-    boxX = W * 0.08;
-    boxY = H * 0.32;
-    boxW = W * 0.84;
-    boxH = H * 0.58;
+  ctx.save();
+  ctx.fillStyle = color;
+  heights.forEach((hRatio, idx) => {
+    const bh = Math.max(4, maxH * hRatio);
+    const bx = startX + idx * (barW + gap);
+    const by = cy - bh / 2;
+    roundedRect(ctx, bx, by, barW, bh, barW / 2);
+    ctx.fill();
+  });
+  ctx.restore();
+}
+
+/** Desenha texto com espaçamento manual consistente entre letras (sem bugs de canvas letterSpacing) */
+function drawTrackedText(ctx, text, x, y, spacing, align = 'left') {
+  const chars = Array.from(text);
+  let totalW = 0;
+  chars.forEach((ch, idx) => {
+    totalW += ctx.measureText(ch).width + (idx < chars.length - 1 ? spacing : 0);
+  });
+
+  let curX = x;
+  if (align === 'center') curX = x - totalW / 2;
+  else if (align === 'right') curX = x - totalW;
+
+  const prevAlign = ctx.textAlign;
+  ctx.textAlign = 'left';
+  chars.forEach((ch, idx) => {
+    ctx.fillText(ch, curX, y);
+    curX += ctx.measureText(ch).width + (idx < chars.length - 1 ? spacing : 0);
+  });
+  ctx.textAlign = prevAlign;
+}
+
+/**
+ * Desenha o card principal da pergunta (usado tanto no layout vertical quanto no 16:9)
+ */
+function drawLuxuryQuestionCard(ctx, boxX, boxY, boxW, boxH, radius, nome, texto, opts = {}) {
+  const isChampagne = currentTheme === 'champagne';
+  const scaleFactor = opts.scaleFactor || 1;
+
+  // Sombra em camadas
+  ctx.save();
+  ctx.shadowColor   = isChampagne ? 'rgba(95, 45, 18, 0.18)' : 'rgba(0, 0, 0, 0.78)';
+  ctx.shadowBlur    = 44;
+  ctx.shadowOffsetY = 14;
+
+  const cardG = ctx.createLinearGradient(boxX, boxY, boxX, boxY + boxH);
+  if (isChampagne) {
+    cardG.addColorStop(0, '#FFFFFF');
+    cardG.addColorStop(1, '#FCF5EC');
   } else {
-    // Quadrado Feed (1080x1080)
-    boxX = W * 0.08;
-    boxY = H * 0.32;
-    boxW = W * 0.84;
-    boxH = H * 0.58;
+    cardG.addColorStop(0, '#221114');
+    cardG.addColorStop(1, '#13080A');
+  }
+  ctx.fillStyle = cardG;
+  roundedRect(ctx, boxX, boxY, boxW, boxH, radius);
+  ctx.fill();
+  ctx.restore();
+
+  // Faixa superior colorida recortada dentro do card
+  ctx.save();
+  roundedRect(ctx, boxX, boxY, boxW, boxH, radius);
+  ctx.clip();
+
+  const barH = Math.max(7, Math.round(8 * scaleFactor));
+  const topBarG = ctx.createLinearGradient(boxX, 0, boxX + boxW, 0);
+  topBarG.addColorStop(0,    '#9F1219');
+  topBarG.addColorStop(0.5,  '#D4A24E');
+  topBarG.addColorStop(1,    '#9F1219');
+  ctx.fillStyle = topBarG;
+  ctx.fillRect(boxX, boxY, boxW, barH);
+
+  // Aspa decorativa discreta no canto superior direito (sem colidir com texto)
+  const quoteSz = Math.round(170 * scaleFactor);
+  ctx.font      = `italic 900 ${quoteSz}px 'Playfair Display', serif`;
+  ctx.fillStyle = isChampagne ? 'rgba(201, 151, 70, 0.14)' : 'rgba(201, 151, 70, 0.10)';
+  ctx.textAlign = 'right';
+  ctx.fillText('”', boxX + boxW - Math.round(44 * scaleFactor), boxY + Math.round(145 * scaleFactor));
+  ctx.restore();
+
+  // Borda metálica sutil
+  ctx.save();
+  const borderG = ctx.createLinearGradient(boxX, boxY, boxX + boxW, boxY + boxH);
+  borderG.addColorStop(0,   isChampagne ? 'rgba(201,151,70,0.65)' : 'rgba(201,151,70,0.55)');
+  borderG.addColorStop(0.5, isChampagne ? 'rgba(255,255,255,0.9)' : 'rgba(168,20,27,0.45)');
+  borderG.addColorStop(1,   isChampagne ? 'rgba(201,151,70,0.55)' : 'rgba(201,151,70,0.55)');
+  ctx.strokeStyle = borderG;
+  ctx.lineWidth   = 2;
+  roundedRect(ctx, boxX, boxY, boxW, boxH, radius);
+  ctx.stroke();
+  ctx.restore();
+
+  // Conteúdo interno
+  const padX    = Math.round(boxW * 0.085);
+  const padTop  = Math.round(62 * scaleFactor);
+  const padBot  = Math.round(58 * scaleFactor);
+  const contX   = boxX + padX;
+  const contW   = boxW - padX * 2;
+  let   curY    = boxY + padTop;
+
+  // Bloco do Nome (se houver)
+  if (nome) {
+    // Barrinha de destaque + Label
+    const lblSize = Math.round(17 * scaleFactor);
+    ctx.fillStyle = isChampagne ? '#B8161E' : '#E3B764';
+    roundedRect(ctx, contX, curY - Math.round(11 * scaleFactor), Math.round(28 * scaleFactor), Math.round(4 * scaleFactor), 2);
+    ctx.fill();
+
+    ctx.font = `700 ${lblSize}px 'Inter', sans-serif`;
+    drawTrackedText(
+      ctx,
+      'PERGUNTA ENVIADA POR',
+      contX + Math.round(38 * scaleFactor),
+      curY - Math.round(4 * scaleFactor),
+      Math.max(1.5, 2.2 * scaleFactor),
+      'left'
+    );
+
+    curY += Math.round(46 * scaleFactor);
+
+    // Nome em Playfair Display ajustado para não estourar largura
+    let nameSize = Math.round(46 * scaleFactor);
+    ctx.font = `700 ${nameSize}px 'Playfair Display', serif`;
+    while (ctx.measureText(nome).width > contW && nameSize > 24) {
+      nameSize -= 2;
+      ctx.font = `700 ${nameSize}px 'Playfair Display', serif`;
+    }
+    ctx.fillStyle = isChampagne ? '#2A1212' : '#F8EFE0';
+    ctx.textAlign = 'left';
+    ctx.fillText(nome, contX, curY);
+
+    curY += Math.round(22 * scaleFactor);
+
+    // Linha divisória sutil
+    const divG = ctx.createLinearGradient(contX, 0, contX + contW * 0.65, 0);
+    divG.addColorStop(0, isChampagne ? 'rgba(184, 22, 30, 0.55)' : 'rgba(227, 183, 100, 0.55)');
+    divG.addColorStop(1, 'transparent');
+    ctx.strokeStyle = divG;
+    ctx.lineWidth   = 2;
+    ctx.beginPath();
+    ctx.moveTo(contX, curY);
+    ctx.lineTo(contX + contW * 0.65, curY);
+    ctx.stroke();
+
+    curY += Math.round(42 * scaleFactor);
+  } else {
+    // Sem nome: tag discreta no topo do card
+    const lblSize = Math.round(16 * scaleFactor);
+    ctx.fillStyle = isChampagne ? '#B8161E' : '#E3B764';
+    roundedRect(ctx, contX, curY - Math.round(10 * scaleFactor), Math.round(24 * scaleFactor), Math.round(4 * scaleFactor), 2);
+    ctx.fill();
+
+    ctx.font = `700 ${lblSize}px 'Inter', sans-serif`;
+    drawTrackedText(
+      ctx,
+      'PERGUNTA DO PÚBLICO',
+      contX + Math.round(34 * scaleFactor),
+      curY - Math.round(3 * scaleFactor),
+      Math.max(1.5, 2.2 * scaleFactor),
+      'left'
+    );
+    curY += Math.round(46 * scaleFactor);
   }
 
-  // Fundo do Card Estilo Glassmorphism / Luxo
-  if (!isOverlay) {
-    ctx.save();
-    ctx.shadowColor = isChampagne ? 'rgba(139, 69, 39, 0.18)' : 'rgba(0,0,0,0.7)';
-    ctx.shadowBlur = 38;
-    ctx.shadowOffsetY = 12;
+  // Área útil da dúvida (descontando assinatura discreta na base do card)
+  const watermarkZone = Math.round(44 * scaleFactor);
+  const bodyMaxH      = (boxY + boxH - padBot - watermarkZone) - curY;
 
-    const boxGrad = ctx.createLinearGradient(boxX, boxY, boxX, boxY + boxH);
+  const autoFont = document.getElementById('ctrl-auto-font')?.checked;
+  const maxFS    = Math.round((opts.maxFont || 54) * scaleFactor);
+  const minFS    = Math.round(24 * scaleFactor);
+
+  let fontSize;
+  if (autoFont) {
+    fontSize = calcAutoFontSize(ctx, texto, contW, bodyMaxH * 0.94, minFS, maxFS, '400');
+  } else {
+    const manual = parseInt(document.getElementById('ctrl-font-size')?.value || '32', 10);
+    fontSize = Math.round(manual * scaleFactor);
+  }
+
+  const lineH = fontSize * 1.48;
+  ctx.font    = `400 ${fontSize}px 'Inter', sans-serif`;
+  const lines = getWrappedLines(ctx, texto, contW);
+  const textH = lines.length * lineH;
+
+  // Centralização ótica suave quando texto é curto
+  const optOffset = Math.max(0, (bodyMaxH - textH) * 0.36);
+  const startY    = curY + fontSize * 0.85 + optOffset;
+
+  ctx.fillStyle = isChampagne ? '#2E1615' : '#EFE7DA';
+  ctx.textAlign = 'left';
+  drawWrappedLines(ctx, lines, contX, startY, lineH, bodyMaxH + fontSize * 0.3);
+
+  // Marca d'água editorial sutil no rodapé interno do card
+  const wmY = boxY + boxH - Math.round(28 * scaleFactor);
+  drawSoundwave(
+    ctx,
+    contX + Math.round(22 * scaleFactor),
+    wmY - Math.round(5 * scaleFactor),
+    Math.round(42 * scaleFactor),
+    Math.round(16 * scaleFactor),
+    isChampagne ? 'rgba(184, 22, 30, 0.40)' : 'rgba(227, 183, 100, 0.45)'
+  );
+  ctx.font      = `600 ${Math.round(14 * scaleFactor)}px 'Inter', sans-serif`;
+  ctx.fillStyle = isChampagne ? 'rgba(92, 56, 44, 0.55)' : 'rgba(227, 183, 100, 0.55)';
+  drawTrackedText(
+    ctx,
+    'PODCAST VENCENDO O DIVÓRCIO',
+    contX + Math.round(54 * scaleFactor),
+    wmY,
+    1.5,
+    'left'
+  );
+}
+
+/**
+ * Layout Vertical Stack: Feed 1:1 (1080x1080) e Stories 9:16 (1080x1920)
+ */
+function drawVerticalStackLayout(ctx, W, H, nome, texto) {
+  const isVertical  = currentArtFormat === 'vertical';
+  const isChampagne = currentTheme === 'champagne';
+
+  // Zona do Logo no topo (Stories respeita safe zone de 135px no topo)
+  const badgeW = isVertical ? 560 : 510;
+  const badgeH = Math.round(badgeW / 1.79);
+  const badgeX = (W - badgeW) / 2;
+  const badgeY = isVertical ? 140 : 54;
+
+  // Linhas douradas laterais ao emblema para acabamento de estúdio
+  const lineY = badgeY + badgeH / 2;
+  ctx.save();
+  ctx.strokeStyle = isChampagne ? 'rgba(201,151,70,0.42)' : 'rgba(201,151,70,0.35)';
+  ctx.lineWidth   = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(64, lineY);
+  ctx.lineTo(badgeX - 24, lineY);
+  ctx.moveTo(badgeX + badgeW + 24, lineY);
+  ctx.lineTo(W - 64, lineY);
+  ctx.stroke();
+  ctx.restore();
+
+  drawLogoBadge(ctx, badgeX, badgeY, badgeW, badgeH, 22, !isChampagne);
+
+  // Card principal com folga entre logo e rodapé
+  const boxX = 72;
+  const boxW = W - 144;
+  const boxY = badgeY + badgeH + (isVertical ? 46 : 30);
+  const footerReserve = isVertical ? 265 : 108;
+  const boxH = H - boxY - footerReserve;
+
+  drawLuxuryQuestionCard(ctx, boxX, boxY, boxW, boxH, 30, nome, texto, {
+    scaleFactor: isVertical ? 1.06 : 1.0,
+    maxFont:     isVertical ? 56 : 50
+  });
+
+  // Rodapé oficial
+  if (isVertical) {
+    // Em Stories/Reels/Shorts, pílula elegante dentro da zona segura (y ~ 1700)
+    const pillW = 680;
+    const pillH = 66;
+    const pillX = (W - pillW) / 2;
+    const pillY = boxY + boxH + 40;
+
+    ctx.save();
+    ctx.shadowColor   = 'rgba(0,0,0,0.22)';
+    ctx.shadowBlur    = 18;
+    ctx.shadowOffsetY = 4;
+    const pillG = ctx.createLinearGradient(pillX, pillY, pillX + pillW, pillY);
     if (isChampagne) {
-      boxGrad.addColorStop(0, '#FFFFFF');
-      boxGrad.addColorStop(1, '#FFF9F4');
+      pillG.addColorStop(0, '#9E1118');
+      pillG.addColorStop(1, '#C41C24');
     } else {
-      boxGrad.addColorStop(0, '#1E1212');
-      boxGrad.addColorStop(1, '#110909');
+      pillG.addColorStop(0, '#261114');
+      pillG.addColorStop(1, '#1A0A0D');
     }
-    ctx.fillStyle = boxGrad;
-    roundedRect(ctx, boxX, boxY, boxW, boxH, 28);
+    ctx.fillStyle = pillG;
+    roundedRect(ctx, pillX, pillY, pillW, pillH, pillH / 2);
     ctx.fill();
     ctx.restore();
 
-    // Moldura refinada com gradiente dourado/carmesim
-    const borderGrad = ctx.createLinearGradient(boxX, boxY, boxX + boxW, boxY + boxH);
+    ctx.strokeStyle = 'rgba(232, 199, 122, 0.55)';
+    ctx.lineWidth   = 1.5;
+    roundedRect(ctx, pillX, pillY, pillW, pillH, pillH / 2);
+    ctx.stroke();
+
+    ctx.font      = `600 18px 'Inter', sans-serif`;
+    ctx.fillStyle = '#F7EAD2';
+    drawTrackedText(ctx, 'PODCAST VENCENDO O DIVÓRCIO  •  CANAL OFICIAL', W / 2, pillY + 40, 1.8, 'center');
+  } else {
+    // No Feed 1:1, barra inferior limpa de ponta a ponta
+    const footH = 82;
+    const footY = H - footH;
+    const footG = ctx.createLinearGradient(0, footY, W, H);
     if (isChampagne) {
-      borderGrad.addColorStop(0, 'rgba(201, 151, 70, 0.8)');
-      borderGrad.addColorStop(0.3, 'rgba(255, 255, 255, 0.9)');
-      borderGrad.addColorStop(0.7, 'rgba(200, 29, 37, 0.5)');
-      borderGrad.addColorStop(1, 'rgba(201, 151, 70, 0.7)');
+      footG.addColorStop(0,   '#8F1016');
+      footG.addColorStop(0.5, '#BA1A22');
+      footG.addColorStop(1,   '#8F1016');
     } else {
-      borderGrad.addColorStop(0, 'rgba(201, 168, 76, 0.7)');
-      borderGrad.addColorStop(0.5, 'rgba(139, 26, 26, 0.5)');
-      borderGrad.addColorStop(1, 'rgba(201, 168, 76, 0.7)');
+      footG.addColorStop(0, '#14080A');
+      footG.addColorStop(1, '#090305');
     }
-    ctx.strokeStyle = borderGrad;
-    ctx.lineWidth = 2.5;
-    roundedRect(ctx, boxX, boxY, boxW, boxH, 28);
-    ctx.stroke();
+    ctx.fillStyle = footG;
+    ctx.fillRect(0, footY, W, footH);
 
-    // Aspas decorativas estilizadas no topo do card
-    ctx.font = `italic 700 ${Math.min(W * 0.08, 90)}px 'Playfair Display', serif`;
-    ctx.fillStyle = isChampagne ? 'rgba(201, 151, 70, 0.22)' : 'rgba(201, 168, 76, 0.2)';
-    ctx.fillText('“', boxX + boxW * 0.06, boxY + boxH * 0.16);
+    // Filete dourado superior do rodapé
+    const lineG = ctx.createLinearGradient(0, 0, W, 0);
+    lineG.addColorStop(0,   'transparent');
+    lineG.addColorStop(0.2, '#C99746');
+    lineG.addColorStop(0.5, '#F2D58F');
+    lineG.addColorStop(0.8, '#C99746');
+    lineG.addColorStop(1,   'transparent');
+    ctx.fillStyle = lineG;
+    ctx.fillRect(0, footY, W, 2.5);
+
+    ctx.font      = `600 18px 'Inter', sans-serif`;
+    ctx.fillStyle = '#FAF0DE';
+    drawTrackedText(ctx, 'PODCAST VENCENDO O DIVÓRCIO   •   CANAL OFICIAL', W / 2, footY + 48, 2.2, 'center');
   }
+}
 
-  const padX = boxW * 0.08;
-  const contentX = boxX + padX;
-  const contentW = boxW - (padX * 2);
+/**
+ * Layout Widescreen 16:9 (1920x1080) para Champagne / Dark — Split Editorial de Estúdio
+ */
+function drawWidescreenLayout(ctx, W, H, nome, texto) {
+  const isChampagne = currentTheme === 'champagne';
 
-  let currentY = boxY + (isOverlay ? boxH * 0.22 : boxH * 0.16);
+  // Coluna esquerda de marca (x: 72..630)
+  const colCenterX = 352;
+  const badgeW     = 500;
+  const badgeH     = Math.round(badgeW / 1.79);
+  const badgeX     = colCenterX - badgeW / 2;
+  const badgeY     = 265;
 
-  // Bloco do Nome do Ouvinte
-  if (nome) {
-    // Tag elegante com microfone / identificador
-    ctx.font = `700 ${Math.min(W * 0.019, 22)}px 'Inter', sans-serif`;
-    ctx.fillStyle = isChampagne ? '#C81D25' : '#E8C77A';
-    ctx.letterSpacing = '0.12em';
-    ctx.textAlign = 'left';
-    ctx.fillText('PERGUNTA ENVIADA POR', contentX, currentY);
-    ctx.letterSpacing = '0';
+  drawLogoBadge(ctx, badgeX, badgeY, badgeW, badgeH, 24, !isChampagne);
 
-    currentY += Math.min(W * 0.038, 44);
+  // Bloco tipográfico abaixo da logo na coluna esquerda
+  const divY = badgeY + badgeH + 46;
+  const divG = ctx.createLinearGradient(colCenterX - 130, 0, colCenterX + 130, 0);
+  divG.addColorStop(0,   'transparent');
+  divG.addColorStop(0.5, '#C99746');
+  divG.addColorStop(1,   'transparent');
+  ctx.fillStyle = divG;
+  ctx.fillRect(colCenterX - 130, divY, 260, 2);
 
-    // Nome em destaque
-    ctx.font = `700 ${Math.min(W * 0.038, 44)}px 'Playfair Display', serif`;
-    ctx.fillStyle = isChampagne ? '#2B1414' : '#F5EDD8';
-    ctx.fillText(nome, contentX, currentY);
+  ctx.font      = `700 18px 'Inter', sans-serif`;
+  ctx.fillStyle = isChampagne ? '#A8141B' : '#E3B764';
+  drawTrackedText(ctx, 'PODCAST', colCenterX, divY + 52, 5, 'center');
 
-    // Divisória sutil
-    currentY += Math.min(W * 0.018, 22);
-    ctx.strokeStyle = isChampagne ? 'rgba(201, 151, 70, 0.3)' : 'rgba(201, 168, 76, 0.3)';
-    ctx.lineWidth = 1.2;
+  ctx.font      = `700 38px 'Playfair Display', serif`;
+  ctx.fillStyle = isChampagne ? '#2B1414' : '#F6ECE0';
+  ctx.textAlign = 'center';
+  ctx.fillText('Vencendo o Divórcio', colCenterX, divY + 104);
+
+  drawSoundwave(
+    ctx,
+    colCenterX,
+    divY + 146,
+    120,
+    24,
+    isChampagne ? 'rgba(184, 22, 30, 0.65)' : 'rgba(227, 183, 100, 0.7)'
+  );
+
+  ctx.font      = `600 15px 'Inter', sans-serif`;
+  ctx.fillStyle = isChampagne ? 'rgba(92, 56, 44, 0.75)' : 'rgba(232, 199, 122, 0.7)';
+  drawTrackedText(ctx, 'CANAL OFICIAL', colCenterX, divY + 196, 3.5, 'center');
+
+  // Coluna direita: Card Principal da Pergunta (amplo e ultra legível em 1080p)
+  const cardX = 676;
+  const cardY = 86;
+  const cardW = W - cardX - 80;
+  const cardH = H - 172;
+
+  drawLuxuryQuestionCard(ctx, cardX, cardY, cardW, cardH, 34, nome, texto, {
+    scaleFactor: 1.24,
+    maxFont:     56
+  });
+}
+
+/**
+ * Tema Overlay Transparente (OBS / vMix / Edição) — Lower-Third Profissional
+ */
+function drawOverlayBroadcast(ctx, W, H, nome, texto) {
+  ctx.clearRect(0, 0, W, H);
+  const isHoriz    = currentArtFormat === 'horizontal';
+  const isVertical = currentArtFormat === 'vertical';
+
+  const sf     = isHoriz ? 1.15 : 0.96;
+  const margin = isHoriz ? 84 : 56;
+  const dockW  = W - margin * 2;
+  const dockH  = isHoriz ? 286 : (isVertical ? 450 : 350);
+  const dockX  = margin;
+  const dockY  = H - dockH - (isVertical ? 140 : (isHoriz ? 58 : 52));
+  const radius = 24;
+
+  // Sombra da barra lower-third
+  ctx.save();
+  ctx.shadowColor   = 'rgba(0, 0, 0, 0.75)';
+  ctx.shadowBlur    = 36;
+  ctx.shadowOffsetY = 10;
+
+  const bg = ctx.createLinearGradient(dockX, dockY, dockX + dockW, dockY + dockH);
+  bg.addColorStop(0, 'rgba(26, 10, 13, 0.95)');
+  bg.addColorStop(1, 'rgba(12, 5, 7, 0.97)');
+  ctx.fillStyle = bg;
+  roundedRect(ctx, dockX, dockY, dockW, dockH, radius);
+  ctx.fill();
+  ctx.restore();
+
+  // Faixa lateral esquerda carmesim -> dourado recortada dentro do dock
+  ctx.save();
+  roundedRect(ctx, dockX, dockY, dockW, dockH, radius);
+  ctx.clip();
+  const stripG = ctx.createLinearGradient(0, dockY, 0, dockY + dockH);
+  stripG.addColorStop(0,   '#C81D25');
+  stripG.addColorStop(0.5, '#DFB26B');
+  stripG.addColorStop(1,   '#9E1118');
+  ctx.fillStyle = stripG;
+  ctx.fillRect(dockX, dockY, 10, dockH);
+  ctx.restore();
+
+  // Borda fina dourada
+  ctx.save();
+  const rim = ctx.createLinearGradient(dockX, dockY, dockX + dockW, dockY);
+  rim.addColorStop(0,   'rgba(223, 178, 107, 0.85)');
+  rim.addColorStop(0.5, 'rgba(245, 218, 152, 0.50)');
+  rim.addColorStop(1,   'rgba(200, 29, 37, 0.65)');
+  ctx.strokeStyle = rim;
+  ctx.lineWidth   = 2;
+  roundedRect(ctx, dockX, dockY, dockW, dockH, radius);
+  ctx.stroke();
+  ctx.restore();
+
+  if (isHoriz) {
+    // 16:9 Broadcast: Emblema à esquerda + Conteúdo largo à direita
+    const badgeW = 300;
+    const badgeH = Math.round(badgeW / 1.79);
+    const badgeX = dockX + 36;
+    const badgeY = dockY + (dockH - badgeH) / 2;
+    drawLogoBadge(ctx, badgeX, badgeY, badgeW, badgeH, 16, true);
+
+    // Divisória vertical sutil
+    const divX = badgeX + badgeW + 34;
+    ctx.strokeStyle = 'rgba(223, 178, 107, 0.30)';
+    ctx.lineWidth   = 1.5;
     ctx.beginPath();
-    ctx.moveTo(contentX, currentY);
-    ctx.lineTo(contentX + contentW, currentY);
+    ctx.moveTo(divX, dockY + 34);
+    ctx.lineTo(divX, dockY + dockH - 34);
     ctx.stroke();
 
-    currentY += Math.min(W * 0.038, 42);
+    const contX = divX + 36;
+    const contW = (dockX + dockW - 44) - contX;
+    let   curY  = dockY + 60;
+
+    // Pílula de identificação + Nome na mesma linha
+    const tagTxt = nome ? 'PERGUNTA DE' : 'PERGUNTA DO PÚBLICO';
+    ctx.font     = `700 15px 'Inter', sans-serif`;
+    const tagW   = ctx.measureText(tagTxt).width + 44;
+    ctx.fillStyle = '#B8161E';
+    roundedRect(ctx, contX, curY - 24, tagW, 32, 8);
+    ctx.fill();
+    ctx.fillStyle = '#FFF5E4';
+    drawTrackedText(ctx, tagTxt, contX + 16, curY - 3, 1.4, 'left');
+
+    if (nome) {
+      ctx.font      = `700 34px 'Playfair Display', serif`;
+      ctx.fillStyle = '#F5DFB0';
+      ctx.textAlign = 'left';
+      ctx.fillText(nome, contX + tagW + 20, curY + 2);
+    }
+
+    curY += 46;
+    const bodyMaxH = (dockY + dockH - 28) - curY;
+    const autoFont = document.getElementById('ctrl-auto-font')?.checked;
+    let fontSize   = autoFont
+      ? calcAutoFontSize(ctx, texto, contW, bodyMaxH * 0.94, 24, 42, '500')
+      : Math.round(parseInt(document.getElementById('ctrl-font-size')?.value || '34', 10) * 1.1);
+
+    ctx.font      = `500 ${fontSize}px 'Inter', sans-serif`;
+    ctx.fillStyle = '#FFFFFF';
+    ctx.textAlign = 'left';
+    const lines   = getWrappedLines(ctx, texto, contW);
+    drawWrappedLines(ctx, lines, contX, curY + fontSize * 0.72, fontSize * 1.38, bodyMaxH);
   } else {
-    currentY += Math.min(W * 0.03, 30);
+    // 1:1 ou 9:16 Overlay: Cabeçalho compacto + Pergunta abaixo
+    const padX   = 44;
+    const contX  = dockX + padX;
+    const contW  = dockW - padX * 2;
+    const badgeW = 190;
+    const badgeH = Math.round(badgeW / 1.79);
+    drawLogoBadge(ctx, contX, dockY + 28, badgeW, badgeH, 12, true);
+
+    const infoX = contX + badgeW + 24;
+    const tagTxt = nome ? 'PERGUNTA ENVIADA POR' : 'PERGUNTA DO PÚBLICO';
+    ctx.font      = `700 14px 'Inter', sans-serif`;
+    ctx.fillStyle = '#DFB26B';
+    drawTrackedText(ctx, tagTxt, infoX, dockY + 60, 1.8, 'left');
+
+    if (nome) {
+      let nSz = 32;
+      ctx.font = `700 ${nSz}px 'Playfair Display', serif`;
+      while (ctx.measureText(nome).width > (dockX + dockW - padX - infoX) && nSz > 20) {
+        nSz -= 2;
+        ctx.font = `700 ${nSz}px 'Playfair Display', serif`;
+      }
+      ctx.fillStyle = '#FFFFFF';
+      ctx.textAlign = 'left';
+      ctx.fillText(nome, infoX, dockY + 102);
+    }
+
+    const bodyTop  = dockY + 28 + badgeH + 28;
+    const bodyMaxH = (dockY + dockH - 28) - bodyTop;
+    const autoFont = document.getElementById('ctrl-auto-font')?.checked;
+    let fontSize   = autoFont
+      ? calcAutoFontSize(ctx, texto, contW, bodyMaxH * 0.94, 22, 42, '500')
+      : Math.round(parseInt(document.getElementById('ctrl-font-size')?.value || '30', 10) * sf);
+
+    ctx.font      = `500 ${fontSize}px 'Inter', sans-serif`;
+    ctx.fillStyle = '#F7EFE2';
+    ctx.textAlign = 'left';
+    const lines   = getWrappedLines(ctx, texto, contW);
+    drawWrappedLines(ctx, lines, contX, bodyTop + fontSize * 0.78, fontSize * 1.42, bodyMaxH);
   }
-
-  // Bloco da Dúvida (tipografia confortável e diagramada)
-  const maxAvailableH = boxH - (currentY - boxY) - (boxH * 0.08);
-
-  let fontSize;
-  if (document.getElementById('ctrl-auto-font')?.checked) {
-    fontSize = calcAutoFontSize(ctx, texto, contentW, maxAvailableH * 0.95, 20, 52);
-  } else {
-    fontSize = parseInt(document.getElementById('ctrl-font-size')?.value || '32');
-  }
-
-  ctx.font = `400 ${fontSize}px 'Inter', sans-serif`;
-  ctx.fillStyle = isChampagne ? '#301815' : '#EFE8DC';
-  wrapText(ctx, texto, contentX, currentY, contentW, fontSize * 1.55, maxAvailableH);
 }
 
 /** Calcula automaticamente o tamanho de fonte que cabe na área */
-function calcAutoFontSize(ctx, text, maxW, maxH, minSize, maxSize) {
+function calcAutoFontSize(ctx, text, maxW, maxH, minSize, maxSize, weight = '400') {
   for (let size = maxSize; size >= minSize; size -= 2) {
-    ctx.font = `400 ${size}px 'Inter', sans-serif`;
+    ctx.font = `${weight} ${size}px 'Inter', sans-serif`;
     const lines = getWrappedLines(ctx, text, maxW);
-    const totalH = lines.length * size * 1.5;
+    const totalH = lines.length * size * 1.48;
     if (totalH <= maxH) return size;
   }
   return minSize;
 }
 
-/** Quebra texto em linhas e as desenha */
-function wrapText(ctx, text, x, y, maxW, lineH, maxH) {
-  const lines = getWrappedLines(ctx, text, maxW);
+/** Desenha array de linhas respeitando altura máxima com reticências */
+function drawWrappedLines(ctx, lines, x, y, lineH, maxH) {
   let currentY = y;
-
-  for (const line of lines) {
-    if (currentY - y + lineH > maxH) {
-      // Adicionar "..." na última linha visível
-      const prevLine = lines[lines.indexOf(line) - 1] || '';
-      ctx.fillText(prevLine + '...', x, currentY - lineH);
+  for (let i = 0; i < lines.length; i++) {
+    if ((i + 1) * lineH > maxH + lineH * 0.25 && i > 0) {
       break;
     }
-    ctx.fillText(line, x, currentY);
+    let lineText = lines[i];
+    const nextExceeds = ((i + 2) * lineH > maxH + lineH * 0.25) && (i < lines.length - 1);
+    if (nextExceeds) {
+      lineText = lineText.replace(/[.,;:\s]+$/, '') + '...';
+    }
+    ctx.fillText(lineText, x, currentY);
     currentY += lineH;
   }
 }
 
-/** Retorna array de linhas quebradas para o canvas */
+/** Retorna array de linhas quebradas para o canvas (com fallback para palavras longas) */
 function getWrappedLines(ctx, text, maxW) {
-  const words  = text.split(' ');
-  const lines  = [];
-  let current  = '';
+  const paragraphs = String(text || '').split('\n');
+  const lines = [];
 
-  for (const word of words) {
-    // Lidar com quebras de linha explícitas
-    const parts = word.split('\n');
-    for (let pi = 0; pi < parts.length; pi++) {
-      const test = current ? `${current} ${parts[pi]}` : parts[pi];
-      if (ctx.measureText(test).width > maxW && current) {
-        lines.push(current);
-        current = parts[pi];
+  for (const para of paragraphs) {
+    const words = para.split(/\s+/).filter(Boolean);
+    if (words.length === 0) {
+      lines.push('');
+      continue;
+    }
+    let current = '';
+    for (const word of words) {
+      const test = current ? `${current} ${word}` : word;
+      if (ctx.measureText(test).width > maxW) {
+        if (current) {
+          lines.push(current);
+          current = '';
+        }
+        // Se uma única palavra for maior que maxW, quebra por caractere
+        if (ctx.measureText(word).width > maxW) {
+          let chunk = '';
+          for (const ch of word) {
+            if (ctx.measureText(chunk + ch).width > maxW && chunk) {
+              lines.push(chunk);
+              chunk = ch;
+            } else {
+              chunk += ch;
+            }
+          }
+          current = chunk;
+        } else {
+          current = word;
+        }
       } else {
         current = test;
       }
-      if (pi < parts.length - 1) {
-        lines.push(current);
-        current = '';
-      }
     }
+    if (current) lines.push(current);
   }
-  if (current) lines.push(current);
   return lines;
 }
 
