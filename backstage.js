@@ -1116,15 +1116,31 @@ function downloadArt() {
 //  CONFIGURAÇÃO — AÇÕES
 // ============================================================
 function registerConfigActions() {
-  // Monitorar mudanças nos campos de config
+  // Monitorar mudanças nos campos de config e auto-salvar
   ['cfg-form-url','cfg-entry-nome','cfg-entry-wpp','cfg-entry-duvida',
    'cfg-podcast-titulo','cfg-edicao','cfg-descricao','cfg-max-chars',
    'cfg-manutencao','cfg-msg-manutencao'].forEach(id => {
-    document.getElementById(id)?.addEventListener('input', updateConfigPreview);
-    document.getElementById(id)?.addEventListener('change', updateConfigPreview);
+    document.getElementById(id)?.addEventListener('input', () => {
+      updateConfigPreview();
+      const cfg = buildConfigObject();
+      saveConfigToStorage(cfg);
+    });
+    document.getElementById(id)?.addEventListener('change', () => {
+      updateConfigPreview();
+      const cfg = buildConfigObject();
+      saveConfigToStorage(cfg);
+    });
   });
 
-  // Exportar config.json
+  // Botão Salvar Explícito
+  document.getElementById('btn-save-config')?.addEventListener('click', () => {
+    const cfg = buildConfigObject();
+    saveConfigToStorage(cfg);
+    CONFIG = cfg;
+    showToast('Configurações salvas com sucesso!', 'success');
+  });
+
+  // Exportar / Baixar config.json
   document.getElementById('btn-export-config')?.addEventListener('click', exportConfig);
 
   // Recarregar config.json
