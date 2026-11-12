@@ -24,7 +24,7 @@
       <p style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 20px;">
         Informe a senha da produção para acessar o Backstage do <strong>Vencendo o Divórcio</strong>.
       </p>
-      <form id="auth-form" onsubmit="return false;">
+      <form id="auth-form" onsubmit="event.preventDefault(); window.submitAuth && window.submitAuth(); return false;">
         <div style="margin-bottom: 16px;">
           <input
             type="password"
@@ -33,10 +33,11 @@
             placeholder="Digite a senha..."
             style="text-align: center; font-size: 1.1rem; letter-spacing: 0.15em;"
             autofocus
+            autocomplete="current-password"
           />
           <span id="auth-error" style="color: var(--red-bright); font-size: 0.75rem; display: block; margin-top: 6px; min-height: 1.2em;"></span>
         </div>
-        <button type="submit" id="auth-submit-btn" class="btn btn-gold" style="width: 100%; justify-content: center;">
+        <button type="button" id="auth-submit-btn" class="btn btn-gold" style="width: 100%; justify-content: center;" onclick="window.submitAuth && window.submitAuth();">
           <i data-lucide="key-round"></i>
           Entrar no Backstage
         </button>

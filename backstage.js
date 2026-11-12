@@ -73,12 +73,19 @@ function setupAuth() {
     setTimeout(() => input?.focus(), 150);
   }
 
-  function handleLogin() {
-    const val = input ? input.value : '';
+  function handleLogin(e) {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    const val = input ? input.value.trim() : '';
     if (val === BACKSTAGE_PASS) {
       sessionStorage.setItem(AUTH_KEY, 'granted');
       localStorage.setItem(AUTH_KEY, 'granted');
-      if (modal) modal.style.display = 'none';
+      if (modal) {
+        modal.style.setProperty('display', 'none', 'important');
+        modal.classList.add('hidden');
+      }
       if (errorEl) errorEl.textContent = '';
       showToast('Acesso liberado ao Backstage!', 'success');
     } else {
@@ -92,7 +99,12 @@ function setupAuth() {
     }
   }
 
+  window.submitAuth = handleLogin;
+
   form?.addEventListener('submit', handleLogin);
+  input?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') handleLogin(e);
+  });
   document.getElementById('auth-submit-btn')?.addEventListener('click', handleLogin);
 
   btnExit?.addEventListener('click', () => {
