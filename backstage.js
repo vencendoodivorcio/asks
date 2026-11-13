@@ -1454,16 +1454,8 @@ function drawBubbleContent(ctx, bx, by, bw, bh, nome, texto, opts = {}) {
   ctx.textBaseline = 'alphabetic';
 
   if (nome) {
-    // Label "PERGUNTA ENVIADA POR"
-    const lblSize = Math.round(14 * scaleFactor);
-    ctx.font      = `700 ${lblSize}px 'Inter', sans-serif`;
-    ctx.fillStyle = '#9E1B22';
-    ctx.textAlign = 'center';
-    drawTrackedText(ctx, 'PERGUNTA ENVIADA POR', cx, curY + lblSize, 2.0, 'center');
-    curY += lblSize + Math.round(10 * scaleFactor);
-
-    // Nome em Playfair
-    let nameSize = Math.round(42 * scaleFactor);
+    // Nome do ouvinte em destaque editorial (sem rótulo redundante)
+    let nameSize = Math.round(44 * scaleFactor);
     ctx.font = `700 ${nameSize}px 'Playfair Display', serif`;
     while (ctx.measureText(nome).width > contW && nameSize > 22) {
       nameSize -= 2;
@@ -1474,27 +1466,22 @@ function drawBubbleContent(ctx, bx, by, bw, bh, nome, texto, opts = {}) {
     ctx.fillText(nome, cx, curY + nameSize);
     curY += nameSize + Math.round(14 * scaleFactor);
 
-    // Divisória discreta
-    const divG = ctx.createLinearGradient(contX, curY, contX + contW, curY);
+    // Divisória sutil dourada abaixo do nome
+    const divW = Math.min(contW * 0.55, Math.max(160, ctx.measureText(nome).width + 60));
+    const divX = cx - divW / 2;
+    const divG = ctx.createLinearGradient(divX, curY, divX + divW, curY);
     divG.addColorStop(0,   'rgba(166,105,26,0)');
-    divG.addColorStop(0.2, 'rgba(166,105,26,0.55)');
-    divG.addColorStop(0.8, 'rgba(166,105,26,0.55)');
+    divG.addColorStop(0.2, 'rgba(201,151,70,0.65)');
+    divG.addColorStop(0.5, 'rgba(240,210,140,0.90)');
+    divG.addColorStop(0.8, 'rgba(201,151,70,0.65)');
     divG.addColorStop(1,   'rgba(166,105,26,0)');
     ctx.strokeStyle = divG;
     ctx.lineWidth   = 1.5;
     ctx.beginPath();
-    ctx.moveTo(contX, curY);
-    ctx.lineTo(contX + contW, curY);
+    ctx.moveTo(divX, curY);
+    ctx.lineTo(divX + divW, curY);
     ctx.stroke();
-    curY += Math.round(18 * scaleFactor);
-  } else {
-    // Sem nome: só "PERGUNTA DO PÚBLICO"
-    const lblSize = Math.round(14 * scaleFactor);
-    ctx.font      = `700 ${lblSize}px 'Inter', sans-serif`;
-    ctx.fillStyle = '#9E1B22';
-    ctx.textAlign = 'center';
-    drawTrackedText(ctx, 'PERGUNTA DO PÚBLICO', cx, curY + lblSize, 2.0, 'center');
-    curY += lblSize + Math.round(14 * scaleFactor);
+    curY += Math.round(20 * scaleFactor);
   }
 
   // Área útil para o texto da pergunta
