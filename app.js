@@ -349,14 +349,21 @@ async function handleSubmit(e) {
     }
   }
 
+  // Timeout de segurança (7s) para conexões muito lentas/3G instável
+  const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve('timeout'), 7000));
+
   try {
-    await firestorePromise;
+    const outcome = await Promise.race([firestorePromise, timeoutPromise]);
+    if (outcome === 'timeout') {
+      console.warn('[VD] Conexão lenta detectada. Ativando envio em segundo plano via iframe...');
+      submitViaIframe(nome, wpp, duvida);
+    }
     showSuccess();
   } catch (err) {
     console.error('[VD] Erro ao salvar no Firestore:', err);
     // Fallback: enviar via iframe se o Firebase falhar
     submitViaIframe(nome, wpp, duvida);
-    setTimeout(showSuccess, 1500);
+    setTimeout(showSuccess, 1000);
   } finally {
     state.isSubmitting = false;
     setBtnLoading(false);

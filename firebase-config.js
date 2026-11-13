@@ -19,3 +19,11 @@ if (typeof firebase !== 'undefined' && !firebase.apps.length) {
 // Exportações globais para os scripts
 window.db = (typeof firebase !== 'undefined' && firebase.firestore) ? firebase.firestore() : null;
 window.auth = (typeof firebase !== 'undefined' && firebase.auth) ? firebase.auth() : null;
+
+// Habilitar persistência offline no Firestore (suporte para conexão lenta/quedas de internet)
+if (window.db && typeof window.db.enablePersistence === 'function') {
+  window.db.enablePersistence({ synchronizeTabs: true }).catch(err => {
+    // Casos normais: múltiplas abas abertas simultâneas ou modo anônimo sem suporte a IndexedDB
+    console.info('[VD Firebase] Status da persistência offline:', err.code);
+  });
+}

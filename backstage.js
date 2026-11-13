@@ -521,8 +521,18 @@ function importCSVData(rows, statusEl) {
     // Hash único para deduplicação
     const hash = hashString(`${timestamp}|||${duvida.trim()}`);
 
-    // Verificar duplicata
-    if (allQuestions.some(q => q.id === hash)) {
+    // Verificar duplicata inteligente (evita duplicar perguntas que já vieram do site via Firebase)
+    const isDuplicate = allQuestions.some(q => {
+      if (q.id === hash) return true;
+      const sameDuvida = (q.duvida || '').trim().toLowerCase() === duvida.trim().toLowerCase();
+      if (!sameDuvida) return false;
+      const cleanQWpp   = (q.whatsapp || '').replace(/\D/g, '');
+      const cleanRowWpp = whatsapp.replace(/\D/g, '');
+      if (cleanQWpp && cleanRowWpp) return cleanQWpp === cleanRowWpp;
+      return true;
+    });
+
+    if (isDuplicate) {
       dupes++;
       continue;
     }
@@ -926,6 +936,9 @@ function registerBatchActions() {
     }
   });
 
+  // Exportar todas as perguntas para CSV compatível com Excel
+  document.getElementById('btn-export-questions-csv')?.addEventListener('click', exportQuestionsCSV);
+
   document.getElementById('btn-clear-storage')?.addEventListener('click', () => {
     openModal(
       'Limpar Dados Locais',
@@ -938,6 +951,44 @@ function registerBatchActions() {
       }
     );
   });
+}
+
+/** Exporta o banco de perguntas completo para arquivo CSV com UTF-8 BOM para Excel */
+function exportQuestionsCSV() {
+  if (!allQuestions || allQuestions.length === 0) {
+    showToast('Nenhuma pergunta cadastrada para exportar.', 'info');
+    return;
+  }
+
+  const headers = ['ID', 'Data/Hora', 'Nome', 'WhatsApp', 'Duvida', 'Status', 'Arquivada', 'Origem'];
+  const rows = allQuestions.map(q => [
+    q.id,
+    q.timestamp || q.createdAt,
+    q.nome || 'Anônimo',
+    q.whatsapp || '',
+    q.duvida || '',
+    q.status || 'Pendente',
+    q.archived ? 'Sim' : 'Não',
+    q.origem || 'firestore'
+  ]);
+
+  const csvBody = Papa.unparse({
+    fields: headers,
+    data: rows
+  }, {
+    delimiter: ';'
+  });
+
+  const blob = new Blob(['\uFEFF' + csvBody], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  const dStr = new Date().toISOString().slice(0, 10);
+  link.download = `perguntas-podcast-${dStr}.csv`;
+  link.href = url;
+  link.click();
+  URL.revokeObjectURL(url);
+
+  showToast(`${allQuestions.length} pergunta(s) exportada(s) para CSV com sucesso!`, 'success');
 }
 
 // ============================================================
