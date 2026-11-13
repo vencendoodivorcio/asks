@@ -115,11 +115,15 @@ function setupAuth() {
     }
   }
 
+  let isLoggingIn = false;
+
   async function handleLogin(e) {
     if (e) {
       e.preventDefault();
       e.stopPropagation();
     }
+    if (isLoggingIn) return;
+
     const email = emailIn ? emailIn.value.trim() : '';
     const pass  = passIn ? passIn.value.trim() : '';
 
@@ -128,6 +132,7 @@ function setupAuth() {
       return;
     }
 
+    isLoggingIn = true;
     if (btnSub) btnSub.disabled = true;
     if (btnTxt) btnTxt.textContent = 'Autenticando...';
     if (errorEl) errorEl.textContent = '';
@@ -162,6 +167,7 @@ function setupAuth() {
         passIn.focus();
       }
     } finally {
+      isLoggingIn = false;
       if (btnSub) btnSub.disabled = false;
       if (btnTxt) btnTxt.textContent = 'Entrar no Backstage';
     }
@@ -425,12 +431,16 @@ function registerDropZone() {
 
   // Click / input
   fileInput.addEventListener('change', (e) => {
-    if (e.target.files[0]) processCSV(e.target.files[0]);
+    const file = e.target.files && e.target.files[0];
+    if (file) {
+      processCSV(file);
+      fileInput.value = ''; // Permite selecionar o mesmo arquivo novamente
+    }
   });
 }
 
 function processCSV(file) {
-  if (!file.name.endsWith('.csv') && file.type !== 'text/csv') {
+  if (!file.name.toLowerCase().endsWith('.csv') && file.type !== 'text/csv' && !file.type.includes('spreadsheet')) {
     showToast('Por favor, selecione um arquivo .csv', 'error');
     return;
   }
@@ -438,21 +448,37 @@ function processCSV(file) {
   const statusEl = document.getElementById('import-status');
   if (statusEl) statusEl.textContent = '⏳ Processando CSV...';
 
-  // PapaParse para parsing robusto
-  Papa.parse(file, {
-    header:            true,
-    skipEmptyLines:    true,
-    dynamicTyping:     false,
-    encoding:          'UTF-8',
-    complete: (results) => {
-      importCSVData(results.data, statusEl);
-    },
-    error: (err) => {
-      console.error('[VD] PapaParse error:', err);
-      showToast('Erro ao parsear o CSV: ' + err.message, 'error');
-      if (statusEl) statusEl.textContent = '❌ Erro ao processar o arquivo.';
-    },
-  });
+  // Leitura com detecção inteligente de encoding (UTF-8 vs Windows-1252 de Excel em português)
+  const reader = new FileReader();
+  reader.onload = function(evt) {
+    const buffer = evt.target.result;
+    let text = new TextDecoder('utf-8', { fatal: false }).decode(buffer);
+    // Se houver caractere de substituição (), redecodifica com Windows-1252 (padrão de exportação do Excel BR)
+    if (text.includes('\uFFFD')) {
+      try {
+        text = new TextDecoder('windows-1252').decode(buffer);
+      } catch (e) {}
+    }
+
+    Papa.parse(text, {
+      header:         true,
+      skipEmptyLines: true,
+      dynamicTyping:  false,
+      complete: (results) => {
+        importCSVData(results.data, statusEl);
+      },
+      error: (err) => {
+        console.error('[VD] PapaParse error:', err);
+        showToast('Erro ao processar o CSV: ' + err.message, 'error');
+        if (statusEl) statusEl.textContent = '❌ Erro ao processar o arquivo.';
+      },
+    });
+  };
+  reader.onerror = function() {
+    showToast('Erro ao ler o arquivo CSV.', 'error');
+    if (statusEl) statusEl.textContent = '❌ Erro ao ler arquivo.';
+  };
+  reader.readAsArrayBuffer(file);
 }
 
 /**
@@ -564,14 +590,23 @@ function detectColumn(headers, keywords) {
   return headers[0] || '';
 }
 
-/** Parse do timestamp do Google Forms: "DD/MM/AAAA HH:MM:SS" */
+/** Parse do timestamp do Google Forms com proteção contra Invalid Date */
 function parseGoogleTimestamp(str) {
   if (!str) return null;
-  // Formato: 12/11/2026 15:30:00
-  const match = str.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{2}):(\d{2})(?::(\d{2}))?/);
-  if (!match) return null;
-  const [, d, m, y, h, min, s] = match;
-  return new Date(`${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}T${h}:${min}:${s||'00'}`).toISOString();
+  try {
+    const s = String(str).trim();
+    // Formato pt-BR: 12/11/2026 15:30:00 ou 12/11/2026 15:30
+    const match = s.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+    if (match) {
+      const [, d, m, y, h, min, sec] = match;
+      const dObj = new Date(parseInt(y, 10), parseInt(m, 10) - 1, parseInt(d, 10), parseInt(h, 10), parseInt(min, 10), parseInt(sec || '0', 10));
+      if (!isNaN(dObj.getTime())) return dObj.toISOString();
+    }
+    // Fallback: Date.parse padrão
+    const directDate = new Date(s);
+    if (!isNaN(directDate.getTime())) return directDate.toISOString();
+  } catch (e) {}
+  return null;
 }
 
 /** Hash simples (djb2) para string */
@@ -622,8 +657,8 @@ function getFilteredQuestions() {
 
     // Search
     if (search) {
-      const inNome   = q.nome.toLowerCase().includes(search);
-      const inDuvida = q.duvida.toLowerCase().includes(search);
+      const inNome   = (q.nome || '').toLowerCase().includes(search);
+      const inDuvida = (q.duvida || '').toLowerCase().includes(search);
       if (!inNome && !inDuvida) return false;
     }
 
@@ -695,15 +730,18 @@ function renderQuestions() {
 }
 
 function renderQuestionCard(q) {
-  const initials = q.nome.substring(0, 2).toUpperCase();
+  const safeNome = (q.nome || 'Anônimo').trim();
+  const initials = (safeNome.substring(0, 2) || 'AN').toUpperCase();
   const timeStr  = q.createdAt ? new Date(q.createdAt).toLocaleString('pt-BR', {
     day: '2-digit', month: '2-digit', year: 'numeric',
     hour: '2-digit', minute: '2-digit'
-  }) : q.timestamp;
+  }) : (q.timestamp || '');
 
-  // Formatar WhatsApp para link (remove caracteres não numéricos)
-  const wppClean = q.whatsapp.replace(/\D/g, '');
-  const wppLink  = wppClean ? `https://wa.me/55${wppClean}` : '#';
+  // Formatar WhatsApp para link sem duplicar o 55
+  let wppClean = String(q.whatsapp || '').replace(/\D/g, '');
+  if (wppClean.startsWith('0') && wppClean.length > 10) wppClean = wppClean.slice(1);
+  const fullPhone = (wppClean.startsWith('55') && wppClean.length >= 12) ? wppClean : ('55' + wppClean);
+  const wppLink  = wppClean ? `https://wa.me/${fullPhone}` : '#';
   const hasWpp   = wppClean.length >= 10;
 
   const statusOptions = ['Pendente', 'Aprovada', 'Respondida', 'Descartada', 'Arquivada']
@@ -716,14 +754,14 @@ function renderQuestionCard(q) {
         <div class="question-author">
           <div class="author-avatar">${initials}</div>
           <div class="author-info">
-            <div class="author-name">${escHtml(q.nome)}</div>
+            <div class="author-name">${escHtml(safeNome)}</div>
             <div class="author-meta">
               <span class="author-time">
                 <i data-lucide="clock-3"></i>
                 ${escHtml(timeStr)}
               </span>
               ${hasWpp ? `
-                <a href="${wppLink}" target="_blank" rel="noopener" class="whatsapp-btn" title="${escHtml(q.whatsapp)}">
+                <a href="${wppLink}" target="_blank" rel="noopener" class="whatsapp-btn" title="${escHtml(q.whatsapp || '')}">
                   <i data-lucide="phone"></i>
                   WhatsApp
                 </a>
@@ -734,7 +772,7 @@ function renderQuestionCard(q) {
         <span class="status-badge ${q.status}">${q.status}</span>
       </div>
 
-      <p class="question-text ${q.archived ? 'muted' : ''}">${escHtml(q.duvida)}</p>
+      <p class="question-text ${q.archived ? 'muted' : ''}">${escHtml(q.duvida || '')}</p>
 
       <div class="question-actions">
         <select class="status-select" title="Alterar status">
@@ -970,27 +1008,42 @@ function registerGeneratorControls() {
   document.getElementById('btn-refresh-preview')?.addEventListener('click', drawArt);
 }
 
-function populateApprovedSelect() {
+function populateApprovedSelect(includeId = null) {
   const sel = document.getElementById('gen-question-select');
   if (!sel) return;
 
-  // Lista todas as perguntas cadastradas (priorizando aprovadas e pendentes)
-  const items = allQuestions.filter(q => !q.archived);
+  const currentVal = sel.value;
+
+  // Lista todas as perguntas ativas ou a pergunta alvo específica
+  const items = allQuestions.filter(q => !q.archived || q.id === includeId);
   sel.innerHTML = '<option value="">— Selecionar uma pergunta da lista —</option>' +
-    items.map(q => `<option value="${q.id}">[${q.status}] ${escHtml(q.nome || 'Anônimo')} — ${escHtml(q.duvida.substring(0, 50))}...</option>`).join('');
+    items.map(q => `<option value="${q.id}">[${q.status}] ${escHtml(q.nome || 'Anônimo')} — ${escHtml((q.duvida || '').substring(0, 50))}...</option>`).join('');
+
+  if (includeId) {
+    sel.value = includeId;
+  } else if (currentVal && items.some(q => q.id === currentVal)) {
+    sel.value = currentVal;
+  }
 }
 
 function openInGenerator(id) {
   // Ir para aba gerador
   document.querySelector('[data-tab="gerador"]')?.click();
 
-  setTimeout(() => {
-    const sel = document.getElementById('gen-question-select');
-    if (sel) {
-      sel.value = id;
-      sel.dispatchEvent(new Event('change'));
-    }
-  }, 100);
+  populateApprovedSelect(id);
+
+  const q = allQuestions.find(item => item.id === id);
+  if (q) {
+    setVal('ctrl-text', q.duvida || '');
+    setVal('ctrl-name', q.nome || 'Anônimo');
+    const anonToggle = document.getElementById('ctrl-anon-toggle');
+    if (anonToggle) anonToggle.checked = (q.nome === 'Anônimo');
+  }
+
+  const sel = document.getElementById('gen-question-select');
+  if (sel) sel.value = id;
+
+  drawArt();
 }
 
 // ============================================================
@@ -1811,11 +1864,18 @@ function downloadArt() {
   const canvas = document.getElementById('art-canvas');
   if (!canvas) return;
 
-  const fmt    = ART_FORMATS[currentArtFormat] || ART_FORMATS.square;
-  const nome   = document.getElementById('ctrl-name')?.value.trim() || 'ouvinte';
-  const link   = document.createElement('a');
-  link.download = `vd-podcast-${currentArtFormat}-${nome.replace(/\s+/g,'-').toLowerCase()}.png`;
-  link.href     = canvas.toDataURL('image/png');
+  const fmt      = ART_FORMATS[currentArtFormat] || ART_FORMATS.square;
+  const rawNome  = document.getElementById('ctrl-name')?.value.trim() || 'ouvinte';
+  const safeNome = rawNome
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9_-]/g, '-')
+    .replace(/-+/g, '-')
+    .toLowerCase() || 'ouvinte';
+
+  const link     = document.createElement('a');
+  link.download  = `vd-podcast-${currentArtFormat}-${safeNome}.png`;
+  link.href      = canvas.toDataURL('image/png');
   link.click();
 
   showToast(`Arte ${fmt.label} baixada em alta resolução!`, 'success');

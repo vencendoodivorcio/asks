@@ -179,19 +179,34 @@ function registerEvents() {
 }
 
 // ============================================================
-//  MÁSCARA DE TELEFONE BRASILEIRO  (00) 00000-0000
+//  MÁSCARA DE TELEFONE BRASILEIRO (10 e 11 dígitos)
 // ============================================================
 function maskPhone(e) {
-  let v = e.target.value.replace(/\D/g, '').substring(0, 11);
+  let v = e.target.value.replace(/\D/g, '');
+
+  // Se colar com +55 e tiver 12 ou 13 dígitos, remove o 55
+  if (v.startsWith('55') && v.length > 11) {
+    v = v.slice(2);
+  }
+  // Se colar com zero inicial (ex: 011), remove o 0
+  if (v.startsWith('0') && v.length > 10) {
+    v = v.slice(1);
+  }
+  v = v.substring(0, 11);
+
   let masked = '';
   if (v.length === 0) {
     masked = '';
   } else if (v.length <= 2) {
     masked = `(${v}`;
-  } else if (v.length <= 7) {
-    masked = `(${v.slice(0,2)}) ${v.slice(2)}`;
-  } else if (v.length <= 11) {
-    masked = `(${v.slice(0,2)}) ${v.slice(2,7)}-${v.slice(7)}`;
+  } else if (v.length <= 6) {
+    masked = `(${v.slice(0, 2)}) ${v.slice(2)}`;
+  } else if (v.length <= 10) {
+    // 10 dígitos (fixo/DDD): (11) 4444-4444
+    masked = `(${v.slice(0, 2)}) ${v.slice(2, 6)}-${v.slice(6)}`;
+  } else {
+    // 11 dígitos (celular com 9): (11) 98888-8888
+    masked = `(${v.slice(0, 2)}) ${v.slice(2, 7)}-${v.slice(7)}`;
   }
   e.target.value = masked;
 }
@@ -247,8 +262,15 @@ function validateForm() {
     valid = false;
   }
 
-  // WhatsApp — deve ter 11 dígitos (DDD + 9 dígitos)
-  const wppDigits = wpp.replace(/\D/g, '');
+  // WhatsApp — deve ter 10 ou 11 dígitos após sanitização
+  let wppDigits = wpp.replace(/\D/g, '');
+  if (wppDigits.startsWith('55') && wppDigits.length > 11) {
+    wppDigits = wppDigits.slice(2);
+  }
+  if (wppDigits.startsWith('0') && wppDigits.length > 10) {
+    wppDigits = wppDigits.slice(1);
+  }
+
   if (wppDigits.length < 10 || wppDigits.length > 11) {
     setError('input-whatsapp', 'error-whatsapp', 'Informe um número de WhatsApp válido com DDD. Ex: (11) 99999-9999');
     valid = false;
@@ -403,9 +425,24 @@ function showSuccess() {
 
 function resetForm() {
   document.getElementById('question-form')?.reset();
-  document.getElementById('char-count').textContent = '0';
-  document.getElementById('char-counter-display')?.classList.remove('warning', 'danger');
-  document.getElementById('input-nome').disabled = false;
+
+  const countEl = document.getElementById('char-count');
+  if (countEl) countEl.textContent = '0';
+
+  const counterDisp = document.getElementById('char-counter-display');
+  if (counterDisp) counterDisp.classList.remove('warning', 'danger');
+
+  const inputNome = document.getElementById('input-nome');
+  if (inputNome) inputNome.disabled = false;
+
+  // Limpar mensagens e bordas de erro
+  ['error-nome','error-whatsapp','error-duvida'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = '';
+  });
+  ['input-nome','input-whatsapp','input-duvida'].forEach(id => {
+    document.getElementById(id)?.classList.remove('has-error');
+  });
 
   document.getElementById('success-screen')?.classList.add('hidden');
   document.getElementById('form-container')?.classList.remove('hidden');
