@@ -31,6 +31,18 @@ function getLogoImage() {
   return (logoImgObj && logoImgObj.complete && logoImgObj.naturalWidth > 0) ? logoImgObj : null;
 }
 
+let templateImgObj = null;
+function getTemplateImage() {
+  if (!templateImgObj) {
+    templateImgObj = new Image();
+    templateImgObj.src = 'assets/template-bg.jpg';
+    templateImgObj.onload = () => {
+      drawArt();
+    };
+  }
+  return (templateImgObj && templateImgObj.complete && templateImgObj.naturalWidth > 0) ? templateImgObj : null;
+}
+
 // Dimensões dos formatos de arte
 const ART_FORMATS = {
   square:     { w: 1080, h: 1080, label: 'Feed 1:1' },
@@ -45,8 +57,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Renderizar ícones Lucide
   if (window.lucide) lucide.createIcons();
 
-  // Inicializa carregamento da logo oficial e fontes para o canvas
+  // Inicializa carregamento da logo oficial, template de fundo e fontes para o canvas
   getLogoImage();
+  getTemplateImage();
   if (document.fonts && document.fonts.ready) {
     document.fonts.ready.then(() => drawArt());
   }
@@ -1133,7 +1146,19 @@ function drawArt() {
     return;
   }
 
-  // Fundo + iluminação + moldura editorial
+  // ── Modelo Oficial: Cetim Dourado ────────────────────────────────────────
+  if (currentTheme === 'champagne') {
+    if (currentArtFormat === 'horizontal') {
+      drawSatinTemplateWidescreen(ctx, W, H, nome, texto);
+    } else if (currentArtFormat === 'vertical') {
+      drawSatinTemplateStories(ctx, W, H, nome, texto);
+    } else {
+      drawSatinTemplateSquare(ctx, W, H, nome, texto);
+    }
+    return;
+  }
+
+  // Fundo + iluminação + moldura editorial (tema dark)
   drawBackground(ctx, W, H, currentTheme);
   drawDecorations(ctx, W, H, currentTheme);
 
@@ -1143,6 +1168,493 @@ function drawArt() {
   } else {
     drawVerticalStackLayout(ctx, W, H, nome, texto);
   }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+//  MODELO OFICIAL — CETIM DOURADO  (champagne theme)
+// ════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Renderiza o fundo de cetim dourado com ondas e bokeh brilhante.
+ * Palheta: champagne quente (#C8933E → #E8BE6A → #F5DCA0 → #A0702A)
+ */
+function drawSatinFabricBackground(ctx, W, H) {
+  // Gradiente base de cetim — ângulo diagonal
+  const bg = ctx.createLinearGradient(0, 0, W * 0.9, H);
+  bg.addColorStop(0.00, '#7B4E1C');
+  bg.addColorStop(0.18, '#B87A30');
+  bg.addColorStop(0.38, '#E0AA56');
+  bg.addColorStop(0.55, '#F5D990');
+  bg.addColorStop(0.72, '#D49A42');
+  bg.addColorStop(0.88, '#A06A20');
+  bg.addColorStop(1.00, '#6B3E10');
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, W, H);
+
+  // Destaque central de luz (realçando o plissado)
+  const spotlight = ctx.createRadialGradient(W * 0.65, H * 0.4, 0, W * 0.65, H * 0.4, W * 0.7);
+  spotlight.addColorStop(0,   'rgba(255, 245, 210, 0.55)');
+  spotlight.addColorStop(0.4, 'rgba(240, 200, 120, 0.22)');
+  spotlight.addColorStop(1,   'rgba(0, 0, 0, 0.0)');
+  ctx.fillStyle = spotlight;
+  ctx.fillRect(0, 0, W, H);
+
+  // Destaque secundário canto esquerdo superior
+  const spot2 = ctx.createRadialGradient(W * 0.08, H * 0.12, 0, W * 0.08, H * 0.12, W * 0.45);
+  spot2.addColorStop(0,   'rgba(255, 240, 185, 0.38)');
+  spot2.addColorStop(1,   'rgba(0, 0, 0, 0)');
+  ctx.fillStyle = spot2;
+  ctx.fillRect(0, 0, W, H);
+
+  // Ondas de drapejamento — faixas diagonais sutis
+  ctx.save();
+  ctx.globalAlpha = 0.07;
+  for (let i = 0; i < 7; i++) {
+    const wx = (W / 6) * i - W * 0.1;
+    const dg = ctx.createLinearGradient(wx, 0, wx + W * 0.18, H);
+    dg.addColorStop(0,   'rgba(255,240,180,0)');
+    dg.addColorStop(0.4, 'rgba(255,245,195,1)');
+    dg.addColorStop(1,   'rgba(255,240,180,0)');
+    ctx.fillStyle = dg;
+    ctx.beginPath();
+    ctx.moveTo(wx - W * 0.04, 0);
+    ctx.quadraticCurveTo(wx + W * 0.07, H * 0.5, wx + W * 0.12, H);
+    ctx.lineTo(wx + W * 0.18, H);
+    ctx.quadraticCurveTo(wx + W * 0.11, H * 0.5, wx + W * 0.04, 0);
+    ctx.closePath();
+    ctx.fill();
+  }
+  ctx.restore();
+
+  // Partículas de bokeh dourado
+  ctx.save();
+  const bokehData = [
+    [0.08, 0.15, 3.5, 0.65], [0.15, 0.72, 2.2, 0.50], [0.22, 0.38, 4.0, 0.72],
+    [0.31, 0.88, 2.8, 0.45], [0.42, 0.22, 3.0, 0.60], [0.50, 0.65, 4.5, 0.75],
+    [0.58, 0.10, 2.0, 0.55], [0.65, 0.80, 3.2, 0.48], [0.72, 0.42, 2.6, 0.62],
+    [0.80, 0.18, 4.8, 0.70], [0.87, 0.60, 2.4, 0.42], [0.93, 0.33, 3.6, 0.58],
+    [0.12, 0.52, 2.0, 0.40], [0.38, 0.05, 2.5, 0.52], [0.75, 0.92, 3.0, 0.44],
+    [0.95, 0.75, 2.2, 0.38], [0.03, 0.85, 1.8, 0.48], [0.55, 0.45, 5.0, 0.80],
+    [0.28, 0.60, 1.5, 0.35], [0.68, 0.28, 2.0, 0.42],
+  ];
+  for (const [rx, ry, r, alpha] of bokehData) {
+    const bx = W * rx, by = H * ry;
+    const bg2 = ctx.createRadialGradient(bx, by, 0, bx, by, r * (W / 400));
+    bg2.addColorStop(0,   `rgba(255,248,210,${alpha})`);
+    bg2.addColorStop(0.5, `rgba(230,185,80,${alpha * 0.5})`);
+    bg2.addColorStop(1,   'rgba(0,0,0,0)');
+    ctx.fillStyle = bg2;
+    ctx.beginPath();
+    ctx.arc(bx, by, r * (W / 400) * 2.8, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+/**
+ * Título 3D "PERGUNTA ENVIADA" com bevel dourado metálico e extrusão vinho.
+ * Escala automaticamente ao canvas (baseado em W).
+ */
+function draw3DGoldTitle(ctx, W, H, cx, topY) {
+  const fontSize = Math.round(W * 0.085);
+  const text     = 'PERGUNTA ENVIADA';
+  const depth    = Math.round(fontSize * 0.055);
+
+  ctx.save();
+  ctx.textAlign    = 'center';
+  ctx.textBaseline = 'alphabetic';
+  ctx.font         = `900 ${fontSize}px 'Playfair Display', serif`;
+
+  // Extrusão 3D — camadas vinho escuro deslocadas
+  for (let d = depth; d >= 1; d--) {
+    const t = d / depth;
+    const r = Math.round(80 * t + 24 * (1 - t));
+    const g = Math.round(10 * t + 5 * (1 - t));
+    const b = Math.round(16 * t + 8 * (1 - t));
+    ctx.fillStyle = `rgba(${r},${g},${b},0.90)`;
+    ctx.fillText(text, cx + d * 0.6, topY + d * 0.9);
+  }
+
+  // Sombra projetada suave
+  ctx.shadowColor   = 'rgba(50,10,10,0.55)';
+  ctx.shadowBlur    = fontSize * 0.22;
+  ctx.shadowOffsetX = depth * 0.8;
+  ctx.shadowOffsetY = depth * 1.2;
+
+  // Face dourada com gradiente metálico
+  const grd = ctx.createLinearGradient(cx, topY - fontSize, cx, topY + 8);
+  grd.addColorStop(0.00, '#FFF8E6');
+  grd.addColorStop(0.12, '#F7E9B8');
+  grd.addColorStop(0.28, '#DDA34E');
+  grd.addColorStop(0.48, '#F5D47A');
+  grd.addColorStop(0.65, '#C88B30');
+  grd.addColorStop(0.82, '#E8C068');
+  grd.addColorStop(1.00, '#A6691A');
+  ctx.fillStyle = grd;
+  ctx.fillText(text, cx, topY);
+  ctx.restore();
+
+  // Borda de bevel — linha fina clara no topo das letras
+  ctx.save();
+  ctx.font         = `900 ${fontSize}px 'Playfair Display', serif`;
+  ctx.textAlign    = 'center';
+  ctx.textBaseline = 'alphabetic';
+  ctx.strokeStyle  = 'rgba(255,248,220,0.60)';
+  ctx.lineWidth    = 1.2;
+  ctx.strokeText(text, cx, topY);
+  ctx.restore();
+}
+
+/**
+ * Divisor de filigrana dourado com nó central — estilo clássico editorial.
+ */
+function drawFiligreeDivider(ctx, cx, y, lineW) {
+  const halfLine = lineW * 0.42;
+  const knobR    = lineW * 0.025;
+
+  ctx.save();
+  // Linha esquerda
+  const lgL = ctx.createLinearGradient(cx - halfLine, y, cx - knobR * 3, y);
+  lgL.addColorStop(0,   'rgba(166, 120, 40, 0)');
+  lgL.addColorStop(0.3, 'rgba(201, 151, 70, 0.8)');
+  lgL.addColorStop(1,   'rgba(230, 185, 100, 0.95)');
+  ctx.strokeStyle = lgL;
+  ctx.lineWidth   = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(cx - halfLine, y);
+  ctx.lineTo(cx - knobR * 3.5, y);
+  ctx.stroke();
+
+  // Linha direita
+  const lgR = ctx.createLinearGradient(cx + knobR * 3, y, cx + halfLine, y);
+  lgR.addColorStop(0,   'rgba(230, 185, 100, 0.95)');
+  lgR.addColorStop(0.7, 'rgba(201, 151, 70, 0.8)');
+  lgR.addColorStop(1,   'rgba(166, 120, 40, 0)');
+  ctx.strokeStyle = lgR;
+  ctx.beginPath();
+  ctx.moveTo(cx + knobR * 3.5, y);
+  ctx.lineTo(cx + halfLine, y);
+  ctx.stroke();
+
+  // Nó central — anel vazio dourado
+  const knobG = ctx.createRadialGradient(cx, y, 0, cx, y, knobR);
+  knobG.addColorStop(0,   '#FFF5D0');
+  knobG.addColorStop(0.4, '#E8BE6A');
+  knobG.addColorStop(1,   '#A6701A');
+  ctx.strokeStyle = knobG;
+  ctx.lineWidth   = 1.5;
+  ctx.beginPath();
+  ctx.arc(cx, y, knobR, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Losango decorativo
+  ctx.fillStyle = 'rgba(230,185,100,0.85)';
+  ctx.beginPath();
+  ctx.moveTo(cx,          y - knobR * 1.5);
+  ctx.lineTo(cx + knobR * 1.5, y);
+  ctx.lineTo(cx,          y + knobR * 1.5);
+  ctx.lineTo(cx - knobR * 1.5, y);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
+/**
+ * Balão de fala fosco (glassmorphism) com cauda inferior central.
+ */
+function drawFrostedSpeechBubble(ctx, bx, by, bw, bh, radius) {
+  const tailW = Math.round(bw * 0.07);
+  const tailH = Math.round(bh * 0.11);
+  const cx    = bx + bw / 2;
+  const bot   = by + bh;
+  const r     = radius || Math.round(bw * 0.045);
+
+  ctx.save();
+
+  // Sombra suave sob o balão
+  ctx.shadowColor   = 'rgba(100, 55, 10, 0.28)';
+  ctx.shadowBlur    = Math.round(bw * 0.065);
+  ctx.shadowOffsetY = Math.round(bh * 0.04);
+
+  // Forma do balão (retângulo + cauda)
+  function bubblePath() {
+    ctx.beginPath();
+    ctx.moveTo(bx + r, by);
+    ctx.lineTo(bx + bw - r, by);
+    ctx.quadraticCurveTo(bx + bw, by, bx + bw, by + r);
+    ctx.lineTo(bx + bw, bot - r);
+    ctx.quadraticCurveTo(bx + bw, bot, bx + bw - r, bot);
+    ctx.lineTo(cx + tailW, bot);
+    // Cauda central apontando para baixo
+    ctx.quadraticCurveTo(cx + tailW * 0.3, bot + tailH * 0.4, cx, bot + tailH);
+    ctx.quadraticCurveTo(cx - tailW * 0.3, bot + tailH * 0.4, cx - tailW, bot);
+    ctx.lineTo(bx + r, bot);
+    ctx.quadraticCurveTo(bx, bot, bx, bot - r);
+    ctx.lineTo(bx, by + r);
+    ctx.quadraticCurveTo(bx, by, bx + r, by);
+    ctx.closePath();
+  }
+
+  // Fill: branco translúcido levemente aquecido (glassmorphism)
+  bubblePath();
+  const glassG = ctx.createLinearGradient(bx, by, bx + bw * 0.3, by + bh);
+  glassG.addColorStop(0,   'rgba(255, 252, 245, 0.88)');
+  glassG.addColorStop(0.4, 'rgba(252, 244, 228, 0.78)');
+  glassG.addColorStop(1,   'rgba(248, 236, 210, 0.72)');
+  ctx.fillStyle = glassG;
+  ctx.fill();
+  ctx.restore();
+
+  // Borda dourada translúcida
+  ctx.save();
+  bubblePath();
+  const borderG = ctx.createLinearGradient(bx, by, bx + bw, by + bh);
+  borderG.addColorStop(0,   'rgba(230,185,100,0.65)');
+  borderG.addColorStop(0.5, 'rgba(255,235,170,0.90)');
+  borderG.addColorStop(1,   'rgba(200,150,60,0.55)');
+  ctx.strokeStyle = borderG;
+  ctx.lineWidth   = 2;
+  ctx.stroke();
+  ctx.restore();
+
+  // Reflexo de luz no topo (realce glassmorphic)
+  ctx.save();
+  const refH   = Math.round(bh * 0.22);
+  const refGrd = ctx.createLinearGradient(bx, by, bx, by + refH);
+  refGrd.addColorStop(0,   'rgba(255,255,255,0.45)');
+  refGrd.addColorStop(1,   'rgba(255,255,255,0.00)');
+  ctx.fillStyle = refGrd;
+  ctx.beginPath();
+  ctx.moveTo(bx + r, by);
+  ctx.lineTo(bx + bw - r, by);
+  ctx.quadraticCurveTo(bx + bw, by, bx + bw, by + r);
+  ctx.lineTo(bx + bw, by + refH);
+  ctx.lineTo(bx, by + refH);
+  ctx.lineTo(bx, by + r);
+  ctx.quadraticCurveTo(bx, by, bx + r, by);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
+/**
+ * Renderiza o conteúdo textual (nome + pergunta) dentro do balão fosco.
+ */
+function drawBubbleContent(ctx, bx, by, bw, bh, nome, texto, opts = {}) {
+  const scaleFactor = opts.scaleFactor || 1;
+  const padX = Math.round(bw * 0.07);
+  const padT = Math.round(bh * 0.10);
+  const padB = Math.round(bh * 0.10);
+  const cx   = bx + bw / 2;
+
+  let curY = by + padT;
+  const contX = bx + padX;
+  const contW = bw - padX * 2;
+
+  ctx.textBaseline = 'alphabetic';
+
+  if (nome) {
+    // Label "PERGUNTA ENVIADA POR"
+    const lblSize = Math.round(14 * scaleFactor);
+    ctx.font      = `700 ${lblSize}px 'Inter', sans-serif`;
+    ctx.fillStyle = '#9E1B22';
+    ctx.textAlign = 'center';
+    drawTrackedText(ctx, 'PERGUNTA ENVIADA POR', cx, curY + lblSize, 2.0, 'center');
+    curY += lblSize + Math.round(10 * scaleFactor);
+
+    // Nome em Playfair
+    let nameSize = Math.round(42 * scaleFactor);
+    ctx.font = `700 ${nameSize}px 'Playfair Display', serif`;
+    while (ctx.measureText(nome).width > contW && nameSize > 22) {
+      nameSize -= 2;
+      ctx.font = `700 ${nameSize}px 'Playfair Display', serif`;
+    }
+    ctx.fillStyle = '#230B0E';
+    ctx.textAlign = 'center';
+    ctx.fillText(nome, cx, curY + nameSize);
+    curY += nameSize + Math.round(14 * scaleFactor);
+
+    // Divisória discreta
+    const divG = ctx.createLinearGradient(contX, curY, contX + contW, curY);
+    divG.addColorStop(0,   'rgba(166,105,26,0)');
+    divG.addColorStop(0.2, 'rgba(166,105,26,0.55)');
+    divG.addColorStop(0.8, 'rgba(166,105,26,0.55)');
+    divG.addColorStop(1,   'rgba(166,105,26,0)');
+    ctx.strokeStyle = divG;
+    ctx.lineWidth   = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(contX, curY);
+    ctx.lineTo(contX + contW, curY);
+    ctx.stroke();
+    curY += Math.round(18 * scaleFactor);
+  } else {
+    // Sem nome: só "PERGUNTA DO PÚBLICO"
+    const lblSize = Math.round(14 * scaleFactor);
+    ctx.font      = `700 ${lblSize}px 'Inter', sans-serif`;
+    ctx.fillStyle = '#9E1B22';
+    ctx.textAlign = 'center';
+    drawTrackedText(ctx, 'PERGUNTA DO PÚBLICO', cx, curY + lblSize, 2.0, 'center');
+    curY += lblSize + Math.round(14 * scaleFactor);
+  }
+
+  // Área útil para o texto da pergunta
+  const bodyMaxH = (by + bh - padB) - curY;
+  const autoFont = document.getElementById('ctrl-auto-font')?.checked;
+  const maxFS    = Math.round((opts.maxFont || 46) * scaleFactor);
+  const minFS    = Math.round(20 * scaleFactor);
+
+  let fontSize;
+  if (autoFont) {
+    fontSize = calcAutoFontSize(ctx, texto, contW, bodyMaxH * 0.92, minFS, maxFS, '450');
+  } else {
+    const manual = parseInt(document.getElementById('ctrl-font-size')?.value || '32', 10);
+    fontSize = Math.round(manual * scaleFactor);
+  }
+
+  const lineH = fontSize * 1.52;
+  ctx.font     = `450 ${fontSize}px 'Inter', sans-serif`;
+  const lines  = getWrappedLines(ctx, texto, contW);
+  const textH  = lines.length * lineH;
+
+  // Centralização ótica vertical
+  const optOffset = Math.max(0, (bodyMaxH - textH) * 0.38);
+  const startY    = curY + fontSize * 0.88 + optOffset;
+
+  ctx.fillStyle = '#1F0A0D';
+  ctx.textAlign = 'center';
+
+  // Redraw em centro
+  for (let i = 0; i < lines.length; i++) {
+    const lineY = startY + i * lineH;
+    if (lineY > by + bh - padB + lineH * 0.3) break;
+    ctx.fillText(lines[i], cx, lineY);
+  }
+}
+
+// ── Widescreen 16:9 (1920×1080) — Template de fundo direto ──────────────────
+function drawSatinTemplateWidescreen(ctx, W, H, nome, texto) {
+  const tpl = getTemplateImage();
+  if (tpl) {
+    // Desenha a imagem de template em tela cheia
+    ctx.drawImage(tpl, 0, 0, W, H);
+  } else {
+    // Fallback: fundo de cetim gerado
+    drawSatinFabricBackground(ctx, W, H);
+    draw3DGoldTitle(ctx, W, H, W / 2, Math.round(H * 0.19));
+    drawFiligreeDivider(ctx, W / 2, Math.round(H * 0.26), W * 0.5);
+  }
+
+  // Texto dentro do balão pré-renderizado no template
+  // Coordenadas calibradas para o template-bg.jpg (1024x571 → 1920x1080)
+  const scaleX = W / 1024;
+  const scaleY = H / 571;
+  const bx = Math.round(213 * scaleX) + Math.round(8 * scaleX);
+  const by = Math.round(169 * scaleY) + Math.round(6 * scaleY);
+  const bw = Math.round(608 * scaleX) - Math.round(16 * scaleX);
+  const bh = Math.round(316 * scaleY) - Math.round(10 * scaleY);
+
+  drawBubbleContent(ctx, bx, by, bw, bh, nome, texto, {
+    scaleFactor: W / 1080,
+    maxFont: 46
+  });
+}
+
+// ── Feed 1:1 (1080×1080) — Totalmente gerado ────────────────────────────────
+function drawSatinTemplateSquare(ctx, W, H, nome, texto) {
+  drawSatinFabricBackground(ctx, W, H);
+
+  // Título 3D (y base da baseline da fonte)
+  const titleY = Math.round(H * 0.165);
+  draw3DGoldTitle(ctx, W, H, W / 2, titleY);
+
+  // Divisor de filigrana
+  const divY = Math.round(H * 0.215);
+  drawFiligreeDivider(ctx, W / 2, divY, W * 0.55);
+
+  // Balão fosco com espaço para cauda inferior
+  const margin = Math.round(W * 0.07);
+  const bx     = margin;
+  const by     = Math.round(H * 0.248);
+  const bw     = W - margin * 2;
+  const tailH  = Math.round(H * 0.065);
+  const bh     = H - by - tailH - Math.round(H * 0.055);
+
+  drawFrostedSpeechBubble(ctx, bx, by, bw, bh, Math.round(bw * 0.045));
+  drawBubbleContent(ctx, bx, by, bw, bh, nome, texto, {
+    scaleFactor: 1.0,
+    maxFont: 50
+  });
+
+  // Pílula de rodapé abaixo da cauda
+  _drawSatinFooterPill(ctx, W, H, by + bh + tailH + Math.round(H * 0.014));
+}
+
+// ── Stories 9:16 (1080×1920) — Totalmente gerado ────────────────────────────
+function drawSatinTemplateStories(ctx, W, H, nome, texto) {
+  drawSatinFabricBackground(ctx, W, H);
+
+  // Safe zone: 135px topo / 260px rodapé (Instagram, TikTok, Shorts)
+  const safeTop = 150;
+
+  // Título 3D
+  const titleY = Math.round(safeTop + H * 0.085);
+  draw3DGoldTitle(ctx, W, H * 0.5, W / 2, titleY);
+
+  // Divisor de filigrana
+  const divY = Math.round(titleY + H * 0.038);
+  drawFiligreeDivider(ctx, W / 2, divY, W * 0.70);
+
+  // Balão fosco — amplo, respeitando safe zones
+  const margin = Math.round(W * 0.055);
+  const bx     = margin;
+  const by     = Math.round(divY + H * 0.025);
+  const bw     = W - margin * 2;
+  const tailH  = Math.round(H * 0.045);
+  const footerY = H - 260; // safe zone inferior
+  const bh     = footerY - by - tailH - Math.round(H * 0.02);
+
+  drawFrostedSpeechBubble(ctx, bx, by, bw, bh, Math.round(bw * 0.05));
+  drawBubbleContent(ctx, bx, by, bw, bh, nome, texto, {
+    scaleFactor: 1.08,
+    maxFont: 60
+  });
+
+  // Pílula de rodapé dentro da safe zone inferior
+  _drawSatinFooterPill(ctx, W, H, footerY + Math.round(H * 0.028));
+}
+
+/** Pílula de rodapé reutilizável para os layouts de cetim */
+function _drawSatinFooterPill(ctx, W, H, pillY) {
+  const pillW = Math.round(W * 0.68);
+  const pillH = Math.round(H * 0.034);
+  const pillX = (W - pillW) / 2;
+  const radius = pillH / 2;
+
+  ctx.save();
+  ctx.shadowColor   = 'rgba(0,0,0,0.30)';
+  ctx.shadowBlur    = 16;
+  ctx.shadowOffsetY = 4;
+
+  const pg = ctx.createLinearGradient(pillX, pillY, pillX + pillW, pillY);
+  pg.addColorStop(0,   '#7A1018');
+  pg.addColorStop(0.5, '#B81A22');
+  pg.addColorStop(1,   '#7A1018');
+  ctx.fillStyle = pg;
+  roundedRect(ctx, pillX, pillY, pillW, pillH, radius);
+  ctx.fill();
+  ctx.restore();
+
+  ctx.strokeStyle = 'rgba(232,185,100,0.65)';
+  ctx.lineWidth   = 1.5;
+  roundedRect(ctx, pillX, pillY, pillW, pillH, radius);
+  ctx.stroke();
+
+  const fontSize = Math.max(13, Math.round(pillH * 0.44));
+  ctx.font      = `600 ${fontSize}px 'Inter', sans-serif`;
+  ctx.fillStyle = '#FAF0DC';
+  ctx.textAlign = 'center';
+  drawTrackedText(ctx, 'PODCAST VENCENDO O DIVÓRCIO  •  CANAL OFICIAL',
+    W / 2, pillY + pillH * 0.66, 1.8, 'center');
 }
 
 function drawBackground(ctx, W, H, theme) {
