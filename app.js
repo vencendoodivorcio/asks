@@ -77,11 +77,35 @@ async function loadConfig() {
   }
 
   applyConfig();
+
+  // 3. Ouvir configurações em tempo real do Firestore (modo formulário fechado / manutenção)
+  if (window.db) {
+    try {
+      window.db.collection('settings').doc('general').onSnapshot(doc => {
+        if (doc.exists) {
+          const remote = doc.data();
+          CONFIG = {
+            ...(CONFIG || {}),
+            ...remote,
+            podcast:       { ...(CONFIG?.podcast || {}), ...(remote.podcast || {}) },
+            configuracoes: { ...(CONFIG?.configuracoes || {}), ...(remote.configuracoes || {}) },
+            google_forms:  { ...(CONFIG?.google_forms || {}), ...(remote.google_forms || {}) }
+          };
+          applyConfig();
+        }
+      }, err => {
+        console.warn('[VD] Erro ao sincronizar settings:', err);
+      });
+    } catch (e) {
+      console.warn('[VD] Erro ao registrar listener de settings:', e);
+    }
+  }
 }
 
 function applyConfig() {
-  const pod = CONFIG.podcast;
-  const cfg = CONFIG.configuracoes;
+  if (!CONFIG) return;
+  const pod = CONFIG.podcast || {};
+  const cfg = CONFIG.configuracoes || {};
 
   const descEl = document.getElementById('header-desc');
   if (descEl && pod.descricao) descEl.textContent = pod.descricao;
@@ -93,12 +117,14 @@ function applyConfig() {
   const charMaxEl = document.getElementById('char-max');
   if (charMaxEl) charMaxEl.textContent = state.charMax;
 
-  // Manutenção?
+  // Manutenção / Formulário Fechado em tempo real
+  const overlay = document.getElementById('maintenance-overlay');
+  const msgEl   = document.getElementById('maintenance-msg');
   if (cfg.manutencao) {
-    const overlay = document.getElementById('maintenance-overlay');
-    const msgEl   = document.getElementById('maintenance-msg');
     if (overlay) overlay.classList.remove('hidden');
-    if (msgEl) msgEl.textContent = cfg.mensagem_manutencao || 'Encerrado.';
+    if (msgEl) msgEl.textContent = cfg.mensagem_manutencao || 'As perguntas estão encerradas no momento. Aguarde o próximo episódio!';
+  } else {
+    if (overlay) overlay.classList.add('hidden');
   }
 }
 
@@ -253,6 +279,11 @@ function setError(inputId, errorId, msg) {
 // ============================================================
 async function handleSubmit(e) {
   e.preventDefault();
+
+  if (CONFIG?.configuracoes?.manutencao) {
+    alert(CONFIG.configuracoes.mensagem_manutencao || 'As perguntas estão encerradas no momento.');
+    return;
+  }
 
   if (state.isSubmitting) return;
   if (!validateForm()) return;

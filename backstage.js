@@ -18,6 +18,7 @@ let currentTheme     = 'champagne';
 let modalCallback    = null;
 let logoImgObj = null;
 let unsubscribeQuestions = null;
+let unsubscribeSettings  = null;
 
 function getLogoImage() {
   if (!logoImgObj) {
@@ -231,6 +232,27 @@ function startFirestoreSync() {
       console.error('[VD Firestore Snapshot Error]', err);
       showToast('Erro ao sincronizar com Firestore: ' + err.message, 'error');
     });
+
+  // Ouvir configurações em tempo real (Modo Manutenção / Formulário Fechado sincronizado entre PCs)
+  if (unsubscribeSettings) unsubscribeSettings();
+  unsubscribeSettings = window.db.collection('settings').doc('general')
+    .onSnapshot(doc => {
+      if (doc.exists) {
+        const remote = doc.data();
+        CONFIG = {
+          ...(CONFIG || {}),
+          ...remote,
+          podcast:       { ...(CONFIG?.podcast || {}), ...(remote.podcast || {}) },
+          configuracoes: { ...(CONFIG?.configuracoes || {}), ...(remote.configuracoes || {}) },
+          google_forms:  { ...(CONFIG?.google_forms || {}), ...(remote.google_forms || {}) }
+        };
+        try { localStorage.setItem(CONFIG_KEY, JSON.stringify(CONFIG)); } catch (e) {}
+        loadConfigToForm();
+        updateConfigPreview();
+      }
+    }, err => {
+      console.warn('[VD] Erro ao sincronizar settings no Backstage:', err);
+    });
 }
 
 /** Interrompe escuta em tempo real ao deslogar */
@@ -238,6 +260,10 @@ function stopFirestoreSync() {
   if (unsubscribeQuestions) {
     unsubscribeQuestions();
     unsubscribeQuestions = null;
+  }
+  if (unsubscribeSettings) {
+    unsubscribeSettings();
+    unsubscribeSettings = null;
   }
   allQuestions = [];
   renderQuestions();
@@ -307,7 +333,14 @@ function saveConfigToStorage(cfg) {
   try {
     localStorage.setItem(CONFIG_KEY, JSON.stringify(cfg));
   } catch (e) {
-    console.error('[VD] Erro ao salvar config:', e);
+    console.error('[VD] Erro ao salvar config local:', e);
+  }
+
+  // Gravar no Firestore se estiver logado para sincronizar com todos os aparelhos
+  if (window.db && window.auth && window.auth.currentUser) {
+    window.db.collection('settings').doc('general').set(cfg, { merge: true })
+      .then(() => console.log('[VD] Configurações salvas no Firestore!'))
+      .catch(err => console.warn('[VD] Erro ao salvar settings no Firestore:', err));
   }
 }
 
@@ -1808,12 +1841,21 @@ function registerConfigActions() {
     });
   });
 
+  // Notificação específica ao ligar/desligar o modo formulário fechado
+  document.getElementById('cfg-manutencao')?.addEventListener('change', (e) => {
+    const isClosed = e.target.checked;
+    showToast(
+      isClosed ? 'Formulário FECHADO para o público (Modo Manutenção) 🔒' : 'Formulário ABERTO para novas perguntas! 🔓',
+      isClosed ? 'info' : 'success'
+    );
+  });
+
   // Botão Salvar Explícito
   document.getElementById('btn-save-config')?.addEventListener('click', () => {
     const cfg = buildConfigObject();
     saveConfigToStorage(cfg);
     CONFIG = cfg;
-    showToast('Configurações salvas com sucesso!', 'success');
+    showToast('Configurações salvas e sincronizadas na nuvem!', 'success');
   });
 
   // Exportar / Baixar config.json
