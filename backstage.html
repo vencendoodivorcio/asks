@@ -16,30 +16,44 @@
 </head>
 <body class="page-backstage">
 
-  <!-- Modal de Senha / Acesso Restrito -->
+  <!-- Modal de Login / Acesso Restrito via Firebase -->
   <div id="auth-modal" class="modal-backdrop" style="z-index: 99999;">
     <div class="modal-box" style="max-width: 420px; text-align: center;">
       <div style="font-size: 2.8rem; margin-bottom: 12px;">🔒</div>
-      <h3 class="modal-title" style="justify-content: center; margin-bottom: 8px;">Acesso Restrito</h3>
+      <h3 class="modal-title" style="justify-content: center; margin-bottom: 8px;">Acesso da Equipe</h3>
       <p style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 20px;">
-        Informe a senha da produção para acessar o Backstage do <strong>Vencendo o Divórcio</strong>.
+        Entre com a conta da equipe para sincronizar as perguntas em tempo real.
       </p>
       <form id="auth-form" onsubmit="event.preventDefault(); window.submitAuth && window.submitAuth(); return false;">
-        <div style="margin-bottom: 16px;">
+        <div style="margin-bottom: 12px; text-align: left;">
+          <label style="font-size: 0.75rem; color: var(--gold-primary); font-weight: 600; display: block; margin-bottom: 4px;">E-MAIL</label>
+          <input
+            type="email"
+            id="auth-email"
+            class="config-input"
+            placeholder="ex: equipe@vencendoodivorcio.com"
+            style="font-size: 0.95rem;"
+            autofocus
+            autocomplete="username"
+            required
+          />
+        </div>
+        <div style="margin-bottom: 16px; text-align: left;">
+          <label style="font-size: 0.75rem; color: var(--gold-primary); font-weight: 600; display: block; margin-bottom: 4px;">SENHA</label>
           <input
             type="password"
             id="auth-password"
             class="config-input"
             placeholder="Digite a senha..."
-            style="text-align: center; font-size: 1.1rem; letter-spacing: 0.15em;"
-            autofocus
+            style="font-size: 0.95rem;"
             autocomplete="current-password"
+            required
           />
           <span id="auth-error" style="color: var(--red-bright); font-size: 0.75rem; display: block; margin-top: 6px; min-height: 1.2em;"></span>
         </div>
         <button type="button" id="auth-submit-btn" class="btn btn-gold" style="width: 100%; justify-content: center;" onclick="window.submitAuth && window.submitAuth();">
-          <i data-lucide="key-round"></i>
-          Entrar no Backstage
+          <i data-lucide="log-in"></i>
+          <span id="auth-btn-text">Entrar no Backstage</span>
         </button>
       </form>
     </div>
@@ -458,6 +472,12 @@
       </div>
     </div>
   </div>
+
+  <!-- Firebase SDK (Compat) -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+  <script src="firebase-config.js"></script>
 
   <script src="backstage.js"></script>
 </body>

@@ -17,6 +17,7 @@ let currentArtFormat = 'square';
 let currentTheme     = 'champagne';
 let modalCallback    = null;
 let logoImgObj = null;
+let unsubscribeQuestions = null;
 
 function getLogoImage() {
   if (!logoImgObj) {
@@ -74,66 +75,173 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 // ============================================================
-//  AUTENTICAÇÃO / SENHA DO BACKSTAGE
+//  AUTENTICAÇÃO / LOGIN DO BACKSTAGE (FIREBASE AUTH)
 // ============================================================
 function setupAuth() {
   const modal   = document.getElementById('auth-modal');
-  const input   = document.getElementById('auth-password');
+  const emailIn = document.getElementById('auth-email');
+  const passIn  = document.getElementById('auth-password');
   const form    = document.getElementById('auth-form');
   const errorEl = document.getElementById('auth-error');
+  const btnSub  = document.getElementById('auth-submit-btn');
+  const btnTxt  = document.getElementById('auth-btn-text');
   const btnExit = document.getElementById('btn-logout');
 
-  // Verifica se já está autenticado nesta sessão/navegador
-  if (sessionStorage.getItem(AUTH_KEY) === 'granted' || localStorage.getItem(AUTH_KEY) === 'granted') {
-    if (modal) modal.style.display = 'none';
+  if (window.auth) {
+    window.auth.onAuthStateChanged(user => {
+      if (user) {
+        if (modal) {
+          modal.style.display = 'none';
+          modal.classList.add('hidden');
+        }
+        if (errorEl) errorEl.textContent = '';
+        startFirestoreSync();
+      } else {
+        if (modal) {
+          modal.style.display = 'flex';
+          modal.classList.remove('hidden');
+        }
+        stopFirestoreSync();
+        setTimeout(() => emailIn?.focus(), 150);
+      }
+    });
   } else {
-    if (modal) modal.style.display = 'flex';
-    setTimeout(() => input?.focus(), 150);
+    // Fallback local se Firebase estiver indisponível
+    if (sessionStorage.getItem(AUTH_KEY) === 'granted' || localStorage.getItem(AUTH_KEY) === 'granted') {
+      if (modal) modal.style.display = 'none';
+    } else {
+      if (modal) modal.style.display = 'flex';
+    }
   }
 
-  function handleLogin(e) {
+  async function handleLogin(e) {
     if (e) {
       e.preventDefault();
       e.stopPropagation();
     }
-    const val = input ? input.value.trim() : '';
-    if (val === BACKSTAGE_PASS) {
-      sessionStorage.setItem(AUTH_KEY, 'granted');
-      localStorage.setItem(AUTH_KEY, 'granted');
-      if (modal) {
-        modal.style.setProperty('display', 'none', 'important');
-        modal.classList.add('hidden');
+    const email = emailIn ? emailIn.value.trim() : '';
+    const pass  = passIn ? passIn.value.trim() : '';
+
+    if (!email || !pass) {
+      if (errorEl) errorEl.textContent = 'Informe o e-mail e a senha cadastrados no Firebase.';
+      return;
+    }
+
+    if (btnSub) btnSub.disabled = true;
+    if (btnTxt) btnTxt.textContent = 'Autenticando...';
+    if (errorEl) errorEl.textContent = '';
+
+    try {
+      if (window.auth) {
+        await window.auth.signInWithEmailAndPassword(email, pass);
+        showToast('Login realizado com sucesso! Sincronizando...', 'success');
+      } else {
+        sessionStorage.setItem(AUTH_KEY, 'granted');
+        localStorage.setItem(AUTH_KEY, 'granted');
+        if (modal) modal.style.display = 'none';
+        showToast('Acesso liberado.', 'success');
       }
-      if (errorEl) errorEl.textContent = '';
-      showToast('Acesso liberado ao Backstage!', 'success');
-    } else {
-      if (errorEl) errorEl.textContent = 'Senha incorreta. Tente novamente.';
-      if (input) {
-        input.value = '';
-        input.classList.add('shake');
-        setTimeout(() => input.classList.remove('shake'), 400);
-        input.focus();
+    } catch (err) {
+      console.error('[VD Auth Error]', err);
+      let msg = 'Erro ao entrar. Verifique seu e-mail e senha.';
+      if (err.code === 'auth/invalid-credential' || err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
+        msg = 'E-mail ou senha incorretos.';
+      } else if (err.code === 'auth/invalid-email') {
+        msg = 'Formato de e-mail inválido.';
+      } else if (err.code === 'auth/too-many-requests') {
+        msg = 'Muitas tentativas sem sucesso. Aguarde alguns minutos.';
+      } else if (err.message) {
+        msg = err.message;
       }
+      if (errorEl) errorEl.textContent = msg;
+      if (passIn) {
+        passIn.value = '';
+        passIn.classList.add('shake');
+        setTimeout(() => passIn.classList.remove('shake'), 400);
+        passIn.focus();
+      }
+    } finally {
+      if (btnSub) btnSub.disabled = false;
+      if (btnTxt) btnTxt.textContent = 'Entrar no Backstage';
     }
   }
 
   window.submitAuth = handleLogin;
 
   form?.addEventListener('submit', handleLogin);
-  input?.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') handleLogin(e);
+  [emailIn, passIn].forEach(inp => {
+    inp?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') handleLogin(e);
+    });
   });
-  document.getElementById('auth-submit-btn')?.addEventListener('click', handleLogin);
+  btnSub?.addEventListener('click', handleLogin);
 
-  btnExit?.addEventListener('click', () => {
+  btnExit?.addEventListener('click', async () => {
+    if (window.auth) {
+      await window.auth.signOut();
+    }
     sessionStorage.removeItem(AUTH_KEY);
     localStorage.removeItem(AUTH_KEY);
-    if (modal) {
-      modal.style.display = 'flex';
-      if (input) { input.value = ''; input.focus(); }
-    }
     showToast('Sessão encerrada com sucesso.', 'info');
   });
+}
+
+/** Inicia escuta em tempo real do Firestore */
+function startFirestoreSync() {
+  if (!window.db) {
+    loadQuestionsFromStorage();
+    renderQuestions();
+    return;
+  }
+
+  if (unsubscribeQuestions) unsubscribeQuestions();
+
+  unsubscribeQuestions = window.db.collection('questions')
+    .onSnapshot(snapshot => {
+      const list = [];
+      snapshot.forEach(doc => {
+        const d = doc.data();
+        let cAt = d.createdAt;
+        if (cAt && cAt.toDate) {
+          cAt = cAt.toDate().toISOString();
+        } else if (!cAt) {
+          cAt = new Date().toISOString();
+        }
+
+        list.push({
+          id:        doc.id,
+          nome:      d.nome || 'Anônimo',
+          whatsapp:  d.whatsapp || '',
+          duvida:    d.duvida || '',
+          status:    d.status || 'Pendente',
+          archived:  Boolean(d.archived),
+          createdAt: cAt,
+          timestamp: d.timestamp || (new Date(cAt)).toLocaleString('pt-BR'),
+          origem:    d.origem || 'firestore'
+        });
+      });
+
+      // Ordenar: mais recentes primeiro
+      list.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      allQuestions = list;
+      saveQuestionsToStorage(); // manter cache local
+      renderQuestions();
+      populateApprovedSelect();
+    }, err => {
+      console.error('[VD Firestore Snapshot Error]', err);
+      showToast('Erro ao sincronizar com Firestore: ' + err.message, 'error');
+    });
+}
+
+/** Interrompe escuta em tempo real ao deslogar */
+function stopFirestoreSync() {
+  if (unsubscribeQuestions) {
+    unsubscribeQuestions();
+    unsubscribeQuestions = null;
+  }
+  allQuestions = [];
+  renderQuestions();
+  populateApprovedSelect();
 }
 
 // ============================================================
@@ -341,6 +449,7 @@ function importCSVData(rows, statusEl) {
 
   let added = 0;
   let dupes  = 0;
+  const newQuestions = [];
 
   for (const row of rows) {
     const timestamp = row[colTimestamp] || row[fallbackCols[0]] || '';
@@ -359,7 +468,7 @@ function importCSVData(rows, statusEl) {
       continue;
     }
 
-    allQuestions.push({
+    const item = {
       id:        hash,
       timestamp: timestamp.trim(),
       nome:      nome.trim() || 'Anônimo',
@@ -368,9 +477,39 @@ function importCSVData(rows, statusEl) {
       status:    'Pendente',
       archived:  false,
       createdAt: parseGoogleTimestamp(timestamp.trim()) || new Date().toISOString(),
-    });
+    };
 
+    allQuestions.push(item);
+    newQuestions.push(item);
     added++;
+  }
+
+  // Sincronizar importação com o Firestore se conectado
+  if (window.db && window.auth && window.auth.currentUser && newQuestions.length > 0) {
+    try {
+      const batch = window.db.batch();
+      // Envia até 450 por lote
+      newQuestions.slice(0, 450).forEach(q => {
+        const ref = window.db.collection('questions').doc(q.id);
+        batch.set(ref, {
+          nome:      q.nome,
+          whatsapp:  q.whatsapp,
+          duvida:    q.duvida,
+          status:    q.status,
+          archived:  q.archived,
+          timestamp: q.timestamp,
+          createdAt: firebase.firestore.Timestamp.fromDate(new Date(q.createdAt)),
+          origem:    'csv_import'
+        }, { merge: true });
+      });
+      batch.commit().then(() => {
+        console.log('[VD] Perguntas importadas sincronizadas com a nuvem!');
+      }).catch(err => {
+        console.warn('[VD] Erro ao sincronizar batch CSV com Firestore:', err);
+      });
+    } catch (e) {
+      console.warn('[VD] Erro geral ao preparar batch CSV:', e);
+    }
   }
 
   saveQuestionsToStorage();
@@ -580,27 +719,54 @@ function renderQuestionCard(q) {
   `;
 }
 
-function updateQuestionStatus(id, newStatus) {
+async function updateQuestionStatus(id, newStatus) {
+  const isArch = (newStatus === 'Arquivada');
   const q = allQuestions.find(q => q.id === id);
-  if (!q) return;
+  if (q) {
+    q.status   = newStatus;
+    q.archived = isArch;
+    renderQuestions();
+    populateApprovedSelect();
+  }
 
-  q.status   = newStatus;
-  q.archived = (newStatus === 'Arquivada');
-
-  saveQuestionsToStorage();
-  renderQuestions();
-  showToast(`Status atualizado: ${newStatus}`, 'success');
+  if (window.db && window.auth && window.auth.currentUser) {
+    try {
+      await window.db.collection('questions').doc(id).update({
+        status:   newStatus,
+        archived: isArch
+      });
+      showToast(`Status atualizado: ${newStatus}`, 'success');
+    } catch (err) {
+      console.error('[VD Error update]', err);
+      showToast('Erro ao sincronizar status: ' + err.message, 'error');
+    }
+  } else {
+    saveQuestionsToStorage();
+    showToast(`Status atualizado: ${newStatus}`, 'success');
+  }
 }
 
 function confirmDeleteQuestion(id) {
   openModal(
     'Excluir Pergunta',
-    'Tem certeza que deseja excluir esta pergunta permanentemente? Esta ação não pode ser desfeita.',
-    () => {
+    'Tem certeza que deseja excluir esta pergunta permanentemente? A exclusão será sincronizada em tempo real com todos os computadores.',
+    async () => {
       allQuestions = allQuestions.filter(q => q.id !== id);
-      saveQuestionsToStorage();
       renderQuestions();
-      showToast('Pergunta excluída.', 'info');
+      populateApprovedSelect();
+
+      if (window.db && window.auth && window.auth.currentUser) {
+        try {
+          await window.db.collection('questions').doc(id).delete();
+          showToast('Pergunta excluída do banco de dados.', 'info');
+        } catch (err) {
+          console.error('[VD Delete Error]', err);
+          showToast('Erro ao excluir no banco: ' + err.message, 'error');
+        }
+      } else {
+        saveQuestionsToStorage();
+        showToast('Pergunta excluída localmente.', 'info');
+      }
     }
   );
 }
@@ -631,20 +797,36 @@ function registerBatchActions() {
     }
     openModal(
       'Arquivar Lote (Novo Episódio)',
-      `Isso marcará ${visible.length} pergunta(s) visíveis como "Arquivada", limpando a fila para o próximo episódio. O histórico é preservado.`,
-      () => {
+      `Isso marcará ${visible.length} pergunta(s) visíveis como "Arquivada", limpando a fila para o próximo episódio. O histórico é preservado e sincronizado com toda a equipe.`,
+      async () => {
         visible.forEach(q => {
           const item = allQuestions.find(a => a.id === q.id);
           if (item) { item.status = 'Arquivada'; item.archived = true; }
         });
-        saveQuestionsToStorage();
         renderQuestions();
-        showToast(`${visible.length} pergunta(s) arquivada(s). Fila limpa para o próximo episódio! 🎙️`, 'success');
+
+        if (window.db && window.auth && window.auth.currentUser) {
+          try {
+            const batch = window.db.batch();
+            visible.forEach(q => {
+              const ref = window.db.collection('questions').doc(q.id);
+              batch.update(ref, { status: 'Arquivada', archived: true });
+            });
+            await batch.commit();
+            showToast(`${visible.length} pergunta(s) arquivada(s) na nuvem! 🎙️`, 'success');
+          } catch (err) {
+            console.error('[VD Batch Error]', err);
+            showToast('Erro ao arquivar lote: ' + err.message, 'error');
+          }
+        } else {
+          saveQuestionsToStorage();
+          showToast(`${visible.length} pergunta(s) arquivada(s). Fila limpa! 🎙️`, 'success');
+        }
       }
     );
   });
 
-  document.getElementById('btn-approve-all-visible')?.addEventListener('click', () => {
+  document.getElementById('btn-approve-all-visible')?.addEventListener('click', async () => {
     const visible = getFilteredQuestions().filter(q => q.status === 'Pendente' && !q.archived);
     if (visible.length === 0) { showToast('Nenhuma pergunta pendente visível.', 'info'); return; }
 
@@ -652,9 +834,25 @@ function registerBatchActions() {
       const item = allQuestions.find(a => a.id === q.id);
       if (item) item.status = 'Aprovada';
     });
-    saveQuestionsToStorage();
     renderQuestions();
-    showToast(`${visible.length} pergunta(s) aprovada(s)!`, 'success');
+
+    if (window.db && window.auth && window.auth.currentUser) {
+      try {
+        const batch = window.db.batch();
+        visible.forEach(q => {
+          const ref = window.db.collection('questions').doc(q.id);
+          batch.update(ref, { status: 'Aprovada' });
+        });
+        await batch.commit();
+        showToast(`${visible.length} pergunta(s) aprovada(s) na nuvem!`, 'success');
+      } catch (err) {
+        console.error('[VD Batch Approve Error]', err);
+        showToast('Erro ao aprovar lote: ' + err.message, 'error');
+      }
+    } else {
+      saveQuestionsToStorage();
+      showToast(`${visible.length} pergunta(s) aprovada(s)!`, 'success');
+    }
   });
 
   document.getElementById('btn-clear-storage')?.addEventListener('click', () => {

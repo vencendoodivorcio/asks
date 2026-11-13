@@ -257,13 +257,6 @@ async function handleSubmit(e) {
   if (state.isSubmitting) return;
   if (!validateForm()) return;
 
-  if (!CONFIG?.google_forms?.form_url || CONFIG.google_forms.form_url.includes('SEU_FORM_ID')) {
-    // No config real: simular sucesso para demonstração
-    console.warn('[VD] URL do Google Forms não configurada. Simulando envio...');
-    showSuccess();
-    return;
-  }
-
   state.isSubmitting = true;
   setBtnLoading(true);
 
@@ -271,26 +264,46 @@ async function handleSubmit(e) {
   const wpp    = document.getElementById('input-whatsapp').value.trim();
   const duvida = document.getElementById('input-duvida').value.trim();
 
-  const formData = new FormData();
-  formData.append(CONFIG.google_forms.entry_nome,     nome);
-  formData.append(CONFIG.google_forms.entry_whatsapp, wpp);
-  formData.append(CONFIG.google_forms.entry_duvida,   duvida);
+  // 1. Gravar em tempo real no Firestore (sincroniza instantaneamente com todos os PCs do Backstage)
+  let firestorePromise = Promise.resolve();
+  if (window.db) {
+    firestorePromise = window.db.collection('questions').add({
+      nome:     nome,
+      whatsapp: wpp,
+      duvida:   duvida,
+      status:   'Pendente',
+      archived: false,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      origem:   'web_form'
+    });
+  }
+
+  // 2. Backup paralelo no Google Forms (mantém a planilha do Google atualizada)
+  if (CONFIG?.google_forms?.form_url && !CONFIG.google_forms.form_url.includes('SEU_FORM_ID')) {
+    try {
+      const formData = new FormData();
+      formData.append(CONFIG.google_forms.entry_nome,     nome);
+      formData.append(CONFIG.google_forms.entry_whatsapp, wpp);
+      formData.append(CONFIG.google_forms.entry_duvida,   duvida);
+
+      fetch(CONFIG.google_forms.form_url, {
+        method: 'POST',
+        mode:   'no-cors',
+        body:   formData,
+      }).catch(err => console.warn('[VD] Falha silenciosa no envio secundário ao Forms:', err));
+    } catch (e) {
+      console.warn('[VD] Erro ao preparar envio ao Forms:', e);
+    }
+  }
 
   try {
-    // fetch no-cors — não receberemos resposta, mas o Forms aceita
-    await fetch(CONFIG.google_forms.form_url, {
-      method: 'POST',
-      mode:   'no-cors',
-      body:   formData,
-    });
-    // Com no-cors, sempre chegamos aqui (success ou erro de servidor ficam opacos)
+    await firestorePromise;
     showSuccess();
   } catch (err) {
-    // Fallback: tentar via iframe oculto
-    console.warn('[VD] fetch falhou, tentando via iframe...', err);
+    console.error('[VD] Erro ao salvar no Firestore:', err);
+    // Fallback: enviar via iframe se o Firebase falhar
     submitViaIframe(nome, wpp, duvida);
-    // Aguardar 2s e mostrar sucesso (não conseguimos confirmar via iframe)
-    setTimeout(showSuccess, 2000);
+    setTimeout(showSuccess, 1500);
   } finally {
     state.isSubmitting = false;
     setBtnLoading(false);
